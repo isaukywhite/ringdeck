@@ -5,6 +5,7 @@ let config = { shortcut: "", slices: [] };
 let activeRecorder = null;
 let expandedSlice = -1;
 let pickerOpen = false;
+let dragSrcIndex = -1;
 
 function appName(path) {
   if (!path) return "";
@@ -121,7 +122,8 @@ function renderActionCard(s, i) {
   const active = i === expandedSlice;
   let html = `
     <div class="action-card${active ? " active" : ""}" data-card="${i}">
-      <div class="action-card-header" data-index="${i}">
+      <div class="action-card-header" data-index="${i}" draggable="true">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
         <span class="action-card-index">${i + 1}</span>
         <span class="action-card-icon">${resolveIcon(s.icon)}</span>
         <div class="action-card-info">
@@ -263,6 +265,52 @@ function bindEvents() {
   if (expandedSlice >= 0 && expandedSlice < config.slices.length) {
     bindDetail(expandedSlice);
   }
+
+  document.querySelectorAll(".action-card").forEach((card) => {
+    const header = card.querySelector(".action-card-header");
+    const idx = +card.dataset.card;
+
+    header.addEventListener("dragstart", (e) => {
+      dragSrcIndex = idx;
+      e.dataTransfer.effectAllowed = "move";
+      requestAnimationFrame(() => card.classList.add("dragging"));
+    });
+
+    header.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      document.querySelectorAll(".action-card").forEach(c => c.classList.remove("drag-over"));
+      dragSrcIndex = -1;
+    });
+
+    card.addEventListener("dragover", (e) => {
+      if (dragSrcIndex === -1 || dragSrcIndex === idx) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      document.querySelectorAll(".action-card.drag-over").forEach(c => c.classList.remove("drag-over"));
+      card.classList.add("drag-over");
+    });
+
+    card.addEventListener("dragleave", (e) => {
+      if (!card.contains(e.relatedTarget)) card.classList.remove("drag-over");
+    });
+
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dragSrcIndex === -1 || dragSrcIndex === idx) return;
+
+      const src = dragSrcIndex;
+      const [moved] = config.slices.splice(src, 1);
+      config.slices.splice(idx, 0, moved);
+
+      if (expandedSlice === src) expandedSlice = idx;
+      else if (src < idx && expandedSlice > src && expandedSlice <= idx) expandedSlice--;
+      else if (src > idx && expandedSlice >= idx && expandedSlice < src) expandedSlice++;
+
+      dragSrcIndex = -1;
+      render();
+    });
+  });
 }
 
 function bindDetail(idx) {
