@@ -388,6 +388,35 @@ body {
               color 0.2s;
 }
 
+.drag-handle {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+  padding: 2px 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.action-card-header:hover .drag-handle {
+  opacity: 1;
+}
+
+.action-card-header:active .drag-handle {
+  cursor: grabbing;
+}
+
+.action-card.dragging {
+  opacity: 0.4;
+}
+
+.action-card.drag-over {
+  border-color: rgba(10, 132, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.2);
+}
+
 .action-card.active .action-card-chevron {
   transform: rotate(90deg);
   color: var(--accent);
