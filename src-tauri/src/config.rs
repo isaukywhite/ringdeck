@@ -33,16 +33,16 @@ impl Default for RingConfig {
                     label: "Terminal".to_string(),
                     icon: "terminal".to_string(),
                     action: ActionConfig::Program {
-                        path: "open".to_string(),
-                        args: vec!["-a".to_string(), "Terminal".to_string()],
+                        path: "/System/Applications/Utilities/Terminal.app".to_string(),
+                        args: vec![],
                     },
                 },
                 SliceConfig {
                     label: "Browser".to_string(),
                     icon: "globe".to_string(),
                     action: ActionConfig::Program {
-                        path: "open".to_string(),
-                        args: vec!["-a".to_string(), "Safari".to_string()],
+                        path: "/Applications/Safari.app".to_string(),
+                        args: vec![],
                     },
                 },
             ],

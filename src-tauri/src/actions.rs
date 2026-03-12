@@ -11,13 +11,24 @@ pub fn execute(action: &ActionConfig) -> Result<(), String> {
                 .map_err(|e| format!("Failed to run script: {}", e))?;
         }
         ActionConfig::Program { path, args } => {
-            Command::new(path)
-                .args(args)
-                .spawn()
-                .map_err(|e| format!("Failed to launch program: {}", e))?;
+            // If path is a .app bundle, launch via `open`
+            if path.ends_with(".app") {
+                let mut cmd = Command::new("open");
+                cmd.arg("-a").arg(path);
+                if !args.is_empty() {
+                    cmd.arg("--args");
+                    cmd.args(args);
+                }
+                cmd.spawn()
+                    .map_err(|e| format!("Failed to open app: {}", e))?;
+            } else {
+                Command::new(path)
+                    .args(args)
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch program: {}", e))?;
+            }
         }
         ActionConfig::System { action } => {
-            // System actions can be extended later
             eprintln!("System action not yet implemented: {}", action);
         }
     }

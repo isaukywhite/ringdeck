@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
 let config = { shortcut: "", slices: [] };
 let activeRecorder = null;
-let selectedSlice = -1;
+let expandedSlice = -1;
 let pickerOpen = false;
 
 const ICON_MAP = { terminal: "🖥️", globe: "🌐", default: "⚙️" };
@@ -24,270 +25,319 @@ function resolveIcon(icon) {
   return ICON_MAP[icon] || "⚙️";
 }
 
+function appName(path) {
+  if (!path) return "";
+  const base = path.split("/").pop() || "";
+  return base.replace(/\.app$/i, "");
+}
+
+function actionSummary(action) {
+  if (action.type === "Script") return action.command || "No command";
+  if (action.type === "Program") {
+    const p = action.path || "";
+    return appName(p) || "No program";
+  }
+  return "";
+}
+
+// Migrate legacy configs that use path:"open" args:["-a","AppName"]
+function migrateLegacyProgram(s) {
+  if (s.action.type !== "Program") return;
+  if (s.action.path === "open" && s.action.args?.length >= 2 && s.action.args[0] === "-a") {
+    const name = s.action.args[1];
+    // Try common macOS app locations
+    const candidates = [
+      `/Applications/${name}.app`,
+      `/System/Applications/${name}.app`,
+      `/System/Applications/Utilities/${name}.app`,
+    ];
+    s.action.path = candidates[0]; // default to /Applications
+    s.action.args = [];
+  }
+}
+
 async function loadConfig() {
   config = await invoke("get_config");
-  // Migrate legacy icon strings
   for (const s of config.slices) {
     s.icon = resolveIcon(s.icon);
+    migrateLegacyProgram(s);
   }
   render();
 }
 
 function render() {
   const app = document.querySelector("#app");
+
+  const sliceRows = config.slices.map((s, i) => {
+    const active = i === expandedSlice;
+    let html = `
+      <div class="slice-row${active ? " active" : ""}" data-index="${i}">
+        <div class="slice-icon">${resolveIcon(s.icon)}</div>
+        <div class="slice-info">
+          <div class="slice-info-name">${s.label || "Untitled"}</div>
+          <div class="slice-info-detail">${actionSummary(s.action)}</div>
+        </div>
+        <span class="slice-chevron">›</span>
+      </div>`;
+    if (active) {
+      html += renderDetail(s, i);
+    }
+    return html;
+  }).join("");
+
   app.innerHTML = `
     <div class="config-panel">
-      <h1>RingDeck</h1>
-      <p class="subtitle">Radial action ring — mouse shortcut launcher</p>
-
-      <section class="shortcut-section">
-        <label>Trigger Shortcut</label>
-        <div class="shortcut-row">
-          <span class="shortcut-display" id="shortcut-display">${config.shortcut || "Not set"}</span>
-          <button id="record-btn" class="btn btn-secondary">Record</button>
+      <div class="app-header">
+        <div class="app-icon">⌘</div>
+        <div>
+          <h1>RingDeck</h1>
+          <div class="subtitle">Radial shortcut launcher</div>
         </div>
+      </div>
+
+      <section>
+        <div class="section-label">Trigger</div>
+        <div class="group">
+          <div class="group-row">
+            <span class="group-row-label">Shortcut</span>
+            <span class="group-row-value">
+              <span class="shortcut-value" id="shortcut-display">${config.shortcut || "Not set"}</span>
+            </span>
+            <span class="group-row-action">
+              <button class="btn-inline" id="record-btn">Record</button>
+            </span>
+          </div>
+        </div>
+        <div class="section-footer">Press a key combination to activate the ring.</div>
       </section>
 
-      <section class="slices-section">
-        <div class="section-header">
-          <label>Ring Slices</label>
-          <button id="add-slice-btn" class="btn btn-secondary btn-small">+ Add</button>
+      ${renderMiniPreview()}
+
+      <section>
+        <div class="section-label">Actions</div>
+        <div class="group" id="slice-group">
+          ${sliceRows}
+          ${config.slices.length === 0 ? '<div class="empty-hint">No actions yet</div>' : ""}
+          <div class="add-row" id="add-slice-btn">
+            <span>Add Action</span>
+          </div>
         </div>
-        ${renderPreview()}
-        ${config.slices.length === 0 ? '<p class="empty-hint">No slices configured. Add one to get started.</p>' : ""}
-        <div id="editor-mount"></div>
       </section>
 
       <div class="actions-row">
-        <button id="save-btn" class="btn btn-primary">Save Configuration</button>
+        <button class="btn-save" id="save-btn">Save</button>
       </div>
     </div>
   `;
 
+  // Bind events
   document.getElementById("record-btn").addEventListener("click", startRecording);
   document.getElementById("add-slice-btn").addEventListener("click", addSlice);
   document.getElementById("save-btn").addEventListener("click", saveConfig);
 
-  setupPreviewInteraction();
-  if (selectedSlice >= 0 && selectedSlice < config.slices.length) {
-    renderEditor();
+  // Slice row clicks
+  document.querySelectorAll(".slice-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      const idx = +row.dataset.index;
+      expandedSlice = expandedSlice === idx ? -1 : idx;
+      render();
+    });
+  });
+
+  // Detail bindings
+  if (expandedSlice >= 0 && expandedSlice < config.slices.length) {
+    bindDetail(expandedSlice);
   }
 }
 
-// --- Geometric Preview ---
+// --- Mini ring preview ---
 
-const PREVIEW_SIZE = 300;
-const PREVIEW_CENTER = PREVIEW_SIZE / 2;
-const NODE_RADIUS = 110;
-
-function slicePosition(i, n) {
-  const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-  return {
-    x: PREVIEW_CENTER + NODE_RADIUS * Math.cos(angle),
-    y: PREVIEW_CENTER + NODE_RADIUS * Math.sin(angle),
-    angle,
-  };
-}
-
-function renderPreview() {
-  if (config.slices.length === 0) {
-    return `<div class="ring-preview-wrap"><div class="ring-preview"><div class="aura"></div></div></div>`;
-  }
-
+function renderMiniPreview() {
+  if (config.slices.length === 0) return "";
   const n = config.slices.length;
-  let svgLines = "";
-
-  // Draw polygon lines between adjacent nodes
-  if (n >= 2) {
-    const points = [];
-    for (let i = 0; i < n; i++) {
-      const p = slicePosition(i, n);
-      points.push(`${p.x},${p.y}`);
-    }
-    svgLines = `<polygon points="${points.join(" ")}" fill="none" stroke="rgba(233,69,96,0.15)" stroke-width="1" />`;
-  }
+  const size = 160;
+  const center = size / 2;
+  const orbit = 55;
 
   const nodes = config.slices.map((s, i) => {
-    const p = slicePosition(i, n);
-    const sel = i === selectedSlice ? " selected" : "";
-    return `<div class="slice-node${sel}" data-index="${i}" style="left:${p.x}px;top:${p.y}px">
-      <div class="slice-node-icon">${resolveIcon(s.icon)}</div>
-      <span class="slice-node-label">${s.label || `Slice ${i + 1}`}</span>
-    </div>`;
+    const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+    const x = center + orbit * Math.cos(angle);
+    const y = center + orbit * Math.sin(angle);
+    return `<div class="ring-mini-node" style="left:${x}px;top:${y}px">${resolveIcon(s.icon)}</div>`;
   }).join("");
 
   return `
-    <div class="ring-preview-wrap">
-      <div class="ring-preview" id="ring-preview">
-        <svg class="ring-preview-svg" viewBox="0 0 ${PREVIEW_SIZE} ${PREVIEW_SIZE}">${svgLines}</svg>
-        <div class="aura"></div>
-        <div class="aura-pointer" id="aura-pointer"></div>
+    <div class="ring-mini">
+      <div class="ring-mini-bg">
+        <div class="ring-mini-center"></div>
         ${nodes}
       </div>
     </div>`;
 }
 
-function setupPreviewInteraction() {
-  const preview = document.getElementById("ring-preview");
-  if (!preview) return;
+// --- Inline Detail ---
 
-  const pointer = document.getElementById("aura-pointer");
+function renderDetail(s, index) {
+  const at = s.action.type;
+  const programPath = at === "Program" ? (s.action.path || "") : "";
+  const programArgs = at === "Program" ? (s.action.args || []).join(" ") : "";
+  const pathDisplay = programPath ? appName(programPath) : "";
 
-  // Click nodes to select
-  preview.querySelectorAll(".slice-node").forEach((node) => {
-    node.addEventListener("click", () => {
-      selectedSlice = +node.dataset.index;
-      // Update selected class
-      preview.querySelectorAll(".slice-node").forEach((n) => n.classList.remove("selected"));
-      node.classList.add("selected");
-      renderEditor();
-    });
-  });
-
-  // Aura pointer follows mouse direction
-  preview.addEventListener("mousemove", (e) => {
-    if (!pointer || config.slices.length === 0) return;
-    const rect = preview.getBoundingClientRect();
-    const mx = e.clientX - rect.left - PREVIEW_CENTER;
-    const my = e.clientY - rect.top - PREVIEW_CENTER;
-    const dist = Math.sqrt(mx * mx + my * my);
-
-    if (dist < 5) return;
-
-    const angle = Math.atan2(my, mx);
-    const pr = 25;
-    const px = PREVIEW_CENTER + pr * Math.cos(angle);
-    const py = PREVIEW_CENTER + pr * Math.sin(angle);
-    pointer.style.left = px + "px";
-    pointer.style.top = py + "px";
-    pointer.style.opacity = "1";
-
-    // Highlight closest node
-    const n = config.slices.length;
-    let closest = 0;
-    let minDist = Infinity;
-    for (let i = 0; i < n; i++) {
-      const p = slicePosition(i, n);
-      const dx = p.x - (mx + PREVIEW_CENTER);
-      const dy = p.y - (my + PREVIEW_CENTER);
-      const d = dx * dx + dy * dy;
-      if (d < minDist) { minDist = d; closest = i; }
-    }
-    preview.querySelectorAll(".slice-node").forEach((node, idx) => {
-      node.classList.toggle("highlight", idx === closest);
-    });
-  });
-
-  preview.addEventListener("mouseleave", () => {
-    if (pointer) pointer.style.opacity = "0";
-    preview.querySelectorAll(".slice-node").forEach((n) => n.classList.remove("highlight"));
-  });
-}
-
-// --- Slice Editor ---
-
-function renderEditor() {
-  const mount = document.getElementById("editor-mount");
-  if (!mount || selectedSlice < 0 || selectedSlice >= config.slices.length) {
-    if (mount) mount.innerHTML = "";
-    return;
-  }
-
-  const s = config.slices[selectedSlice];
-  const actionType = s.action.type;
-  let commandValue = "";
-  if (actionType === "Script") commandValue = s.action.command;
-  else if (actionType === "Program") commandValue = [s.action.path, ...(s.action.args || [])].join(" ");
-
-  mount.innerHTML = `
-    <div class="slice-editor">
-      <div class="editor-row">
-        <label class="editor-label">Icon</label>
-        <button class="icon-btn" id="icon-btn">${resolveIcon(s.icon)}</button>
-        <label class="editor-label" style="width:auto;margin-left:8px">Label</label>
-        <input type="text" id="editor-label" value="${escAttr(s.label)}" placeholder="Slice name" style="flex:1" />
+  return `
+    <div class="slice-detail" data-detail="${index}">
+      <div class="detail-field">
+        <span class="detail-field-label">Icon</span>
+        <button class="icon-btn" id="icon-btn-${index}">${resolveIcon(s.icon)}</button>
+        <input type="text" id="label-${index}" value="${escAttr(s.label)}" placeholder="Name" style="flex:1" />
       </div>
-      <div class="editor-row">
-        <label class="editor-label">Type</label>
-        <select id="editor-type" style="width:120px">
-          <option value="Script" ${actionType === "Script" ? "selected" : ""}>Script</option>
-          <option value="Program" ${actionType === "Program" ? "selected" : ""}>Program</option>
+      <div class="detail-field">
+        <span class="detail-field-label">Type</span>
+        <select id="type-${index}">
+          <option value="Script"${at === "Script" ? " selected" : ""}>Script</option>
+          <option value="Program"${at === "Program" ? " selected" : ""}>Program</option>
         </select>
       </div>
-      <div class="editor-row">
-        <label class="editor-label">Command</label>
-        <input type="text" id="editor-command" value="${escAttr(commandValue)}" placeholder="${actionType === "Script" ? "Shell command" : "Program path + args"}" style="flex:1" />
+      ${at === "Script" ? `
+        <div class="detail-field">
+          <span class="detail-field-label">Command</span>
+          <input type="text" id="cmd-${index}" value="${escAttr(s.action.command || "")}" placeholder="e.g. open -a Safari" />
+        </div>
+      ` : `
+        <div class="detail-field">
+          <span class="detail-field-label">Program</span>
+          <div class="file-picker">
+            <span class="file-picker-path${pathDisplay ? "" : " empty"}" id="path-${index}">${pathDisplay || "Choose..."}</span>
+            <button class="btn-browse" id="browse-${index}">Browse</button>
+          </div>
+        </div>
+        <div class="detail-field">
+          <span class="detail-field-label">Arguments</span>
+          <input type="text" id="args-${index}" value="${escAttr(programArgs)}" placeholder="Optional" />
+        </div>
+      `}
+      <div class="detail-footer">
+        <button class="btn-delete" id="delete-${index}">Remove Action</button>
       </div>
-      <div class="editor-row" style="justify-content:flex-end">
-        <button class="btn btn-danger btn-small" id="editor-delete">Delete Slice</button>
-      </div>
-    </div>
-  `;
-
-  const idx = selectedSlice;
-
-  document.getElementById("editor-label").addEventListener("input", (e) => {
-    config.slices[idx].label = e.target.value;
-    updateNodeDisplay(idx);
-  });
-
-  document.getElementById("editor-type").addEventListener("change", (e) => {
-    const cmd = document.getElementById("editor-command").value;
-    if (e.target.value === "Script") {
-      config.slices[idx].action = { type: "Script", command: cmd };
-    } else {
-      const parts = cmd.split(" ");
-      config.slices[idx].action = { type: "Program", path: parts[0] || "", args: parts.slice(1) };
-    }
-    document.getElementById("editor-command").placeholder = e.target.value === "Script" ? "Shell command" : "Program path + args";
-  });
-
-  document.getElementById("editor-command").addEventListener("input", (e) => {
-    const t = document.getElementById("editor-type").value;
-    if (t === "Script") {
-      config.slices[idx].action = { type: "Script", command: e.target.value };
-    } else {
-      const parts = e.target.value.split(" ");
-      config.slices[idx].action = { type: "Program", path: parts[0] || "", args: parts.slice(1) };
-    }
-  });
-
-  document.getElementById("editor-delete").addEventListener("click", () => {
-    config.slices.splice(idx, 1);
-    selectedSlice = -1;
-    render();
-  });
-
-  document.getElementById("icon-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    openIconPicker(idx);
-  });
+    </div>`;
 }
 
-function updateNodeDisplay(idx) {
-  const node = document.querySelector(`.slice-node[data-index="${idx}"]`);
-  if (!node) return;
+function bindDetail(idx) {
   const s = config.slices[idx];
-  node.querySelector(".slice-node-icon").textContent = resolveIcon(s.icon);
-  node.querySelector(".slice-node-label").textContent = s.label || `Slice ${idx + 1}`;
+
+  const labelInput = document.getElementById(`label-${idx}`);
+  if (labelInput) {
+    labelInput.addEventListener("input", (e) => {
+      s.label = e.target.value;
+      // Update row live
+      const row = document.querySelector(`.slice-row[data-index="${idx}"] .slice-info-name`);
+      if (row) row.textContent = s.label || "Untitled";
+    });
+    // Prevent row toggle when clicking inside detail
+    labelInput.addEventListener("click", (e) => e.stopPropagation());
+  }
+
+  const typeSelect = document.getElementById(`type-${idx}`);
+  if (typeSelect) {
+    typeSelect.addEventListener("click", (e) => e.stopPropagation());
+    typeSelect.addEventListener("change", (e) => {
+      if (e.target.value === "Script") {
+        s.action = { type: "Script", command: "" };
+      } else {
+        s.action = { type: "Program", path: "", args: [] };
+      }
+      render();
+    });
+  }
+
+  // Script
+  const cmdInput = document.getElementById(`cmd-${idx}`);
+  if (cmdInput) {
+    cmdInput.addEventListener("click", (e) => e.stopPropagation());
+    cmdInput.addEventListener("input", (e) => {
+      s.action = { type: "Script", command: e.target.value };
+      const detail = document.querySelector(`.slice-row[data-index="${idx}"] .slice-info-detail`);
+      if (detail) detail.textContent = e.target.value || "No command";
+    });
+  }
+
+  // Program: browse
+  const browseBtn = document.getElementById(`browse-${idx}`);
+  if (browseBtn) {
+    browseBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        defaultPath: "/Applications",
+        filters: [{ name: "Applications", extensions: ["app"] }],
+      });
+      if (selected) {
+        s.action.path = selected;
+        const name = appName(selected);
+        const display = document.getElementById(`path-${idx}`);
+        if (display) {
+          display.textContent = name;
+          display.classList.remove("empty");
+        }
+        const detail = document.querySelector(`.slice-row[data-index="${idx}"] .slice-info-detail`);
+        if (detail) detail.textContent = name;
+      }
+    });
+  }
+
+  // Program: args
+  const argsInput = document.getElementById(`args-${idx}`);
+  if (argsInput) {
+    argsInput.addEventListener("click", (e) => e.stopPropagation());
+    argsInput.addEventListener("input", (e) => {
+      s.action.args = e.target.value ? e.target.value.split(" ") : [];
+    });
+  }
+
+  // Icon picker
+  const iconBtn = document.getElementById(`icon-btn-${idx}`);
+  if (iconBtn) {
+    iconBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openIconPicker(idx);
+    });
+  }
+
+  // Delete
+  const deleteBtn = document.getElementById(`delete-${idx}`);
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      config.slices.splice(idx, 1);
+      expandedSlice = -1;
+      render();
+    });
+  }
+
+  // Stop propagation on detail area
+  const detail = document.querySelector(`.slice-detail[data-detail="${idx}"]`);
+  if (detail) {
+    detail.addEventListener("click", (e) => e.stopPropagation());
+  }
 }
+
+// --- Icon Picker ---
 
 function openIconPicker(idx) {
   closeIconPicker();
   pickerOpen = true;
 
-  const btn = document.getElementById("icon-btn");
+  const btn = document.getElementById(`icon-btn-${idx}`);
   const rect = btn.getBoundingClientRect();
 
-  // Overlay to catch outside clicks
   const overlay = document.createElement("div");
   overlay.className = "icon-picker-overlay";
   overlay.addEventListener("click", closeIconPicker);
 
   const picker = document.createElement("div");
   picker.className = "icon-picker";
-  picker.style.left = rect.left + "px";
-  picker.style.top = (rect.bottom + 6) + "px";
+  picker.style.left = Math.min(rect.left, window.innerWidth - 310) + "px";
+  picker.style.top = (rect.bottom + 4) + "px";
 
   let html = "";
   for (const cat of EMOJI_CATEGORIES) {
@@ -302,9 +352,16 @@ function openIconPicker(idx) {
     e.stopPropagation();
     const cell = e.target.closest(".icon-picker-cell");
     if (!cell) return;
-    config.slices[idx].icon = cell.dataset.emoji;
-    updateNodeDisplay(idx);
-    document.getElementById("icon-btn").textContent = cell.dataset.emoji;
+    const s = config.slices[idx];
+    s.icon = cell.dataset.emoji;
+    // Update inline
+    const iconEl = document.getElementById(`icon-btn-${idx}`);
+    if (iconEl) iconEl.textContent = cell.dataset.emoji;
+    const rowIcon = document.querySelector(`.slice-row[data-index="${idx}"] .slice-icon`);
+    if (rowIcon) rowIcon.textContent = cell.dataset.emoji;
+    // Update mini preview
+    const miniNodes = document.querySelectorAll(".ring-mini-node");
+    if (miniNodes[idx]) miniNodes[idx].textContent = cell.dataset.emoji;
     closeIconPicker();
   });
 
@@ -322,7 +379,7 @@ function escAttr(str) {
   return (str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
-// --- Slice Add ---
+// --- Add Slice ---
 
 function addSlice() {
   config.slices.push({
@@ -330,7 +387,7 @@ function addSlice() {
     icon: "⚙️",
     action: { type: "Script", command: "" },
   });
-  selectedSlice = config.slices.length - 1;
+  expandedSlice = config.slices.length - 1;
   render();
 }
 
@@ -426,10 +483,10 @@ async function saveConfig() {
   try {
     await invoke("save_config", { config });
     const btn = document.getElementById("save-btn");
-    btn.textContent = "Saved!";
+    btn.textContent = "Saved";
     btn.classList.add("saved");
     setTimeout(() => {
-      btn.textContent = "Save Configuration";
+      btn.textContent = "Save";
       btn.classList.remove("saved");
     }, 1500);
   } catch (e) {

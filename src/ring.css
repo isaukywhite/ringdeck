@@ -15,111 +15,140 @@ html, body {
   position: relative;
   width: 400px;
   height: 400px;
-  transform: scale(0.85);
+}
+
+/* === Entrance === */
+
+#ring .ring-center,
+#ring .ring-node,
+#ring .ring-connectors {
   opacity: 0;
-  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.14s ease-out;
 }
 
-#ring.appear {
-  transform: scale(1);
-  opacity: 1;
+#ring.appear .ring-center {
+  animation: center-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
-/* --- Center Aura --- */
+#ring.appear .ring-connectors {
+  animation: fade-in 0.6s ease-out 0.06s forwards;
+}
+
+#ring.appear .ring-node {
+  animation: node-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes center-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes node-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* === Center === */
 
 .ring-center {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 20px;
-  height: 20px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(233, 69, 96, 0.9) 0%, rgba(233, 69, 96, 0.3) 50%, transparent 70%);
-  box-shadow: 0 0 18px rgba(233, 69, 96, 0.6), 0 0 40px rgba(233, 69, 96, 0.2);
-  animation: center-pulse 3s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: none;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* === Connectors === */
+
+.ring-connectors {
+  position: absolute;
+  inset: 0;
   pointer-events: none;
   z-index: 1;
 }
 
-@keyframes center-pulse {
-  0%, 100% { box-shadow: 0 0 18px rgba(233, 69, 96, 0.6), 0 0 40px rgba(233, 69, 96, 0.2); transform: translate(-50%, -50%) scale(1); }
-  50% { box-shadow: 0 0 28px rgba(233, 69, 96, 0.8), 0 0 56px rgba(233, 69, 96, 0.35); transform: translate(-50%, -50%) scale(1.15); }
+.connector-line {
+  transition: stroke-opacity 0.25s, stroke-width 0.25s;
 }
 
-/* --- Connector Lines (SVG) --- */
-
-.ring-connectors {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 400px;
-  height: 400px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* --- Slice Node --- */
+/* === Node === */
 
 .ring-node {
   position: absolute;
   transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 3;
+}
+
+.ring-node-inner {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  cursor: pointer;
-  z-index: 2;
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 4px;
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.ring-node.hovered .ring-node-inner {
+  transform: scale(1.1) translateY(-2px);
 }
 
 .ring-node-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(12, 12, 32, 0.85);
-  border: 2px solid rgba(60, 60, 100, 0.5);
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
   line-height: 1;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, transform 0.15s;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+
+  /* Solid dark material — no backdrop-filter (doesn't work on transparent windows) */
+  background: rgba(30, 30, 30, 0.82);
+  border: none;
+  box-shadow: none;
+
+  transition: background 0.25s;
 }
 
-.ring-node:hover .ring-node-circle,
 .ring-node.hovered .ring-node-circle {
-  border-color: #e94560;
-  box-shadow: 0 0 16px rgba(233, 69, 96, 0.5), 0 0 4px rgba(233, 69, 96, 0.8);
-  background: rgba(30, 15, 35, 0.9);
-  transform: scale(1.12);
+  background: rgba(50, 50, 50, 0.88);
+  box-shadow: none;
 }
 
-/* --- Label Badge --- */
+/* === Label === */
 
 .ring-node-label {
-  position: absolute;
-  white-space: nowrap;
   font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #e0e0e0;
-  background: rgba(12, 12, 32, 0.85);
-  border: 1px solid rgba(60, 60, 100, 0.4);
-  border-radius: 6px;
-  padding: 3px 10px;
-  pointer-events: none;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+
+  background: rgba(30, 30, 30, 0.75);
+  border: none;
+  border-radius: 5px;
+  padding: 2px 8px;
+  box-shadow: none;
+
+  opacity: 0.85;
+  transform: scale(0.96);
+  transition: opacity 0.2s, transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.ring-node:hover .ring-node-label,
 .ring-node.hovered .ring-node-label {
-  color: #fff;
-  border-color: rgba(233, 69, 96, 0.4);
-  box-shadow: 0 0 10px rgba(233, 69, 96, 0.2);
+  opacity: 1;
+  transform: scale(1);
 }
