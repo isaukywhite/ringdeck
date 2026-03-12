@@ -2,17 +2,34 @@
   "name": "ringdeck",
   "private": true,
   "version": "0.1.0",
+  "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "tauri": "tauri"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-dialog": "^2.6.0"
+    "dev": "vite build && electron .",
+    "build": "vite build && electron-builder",
+    "pack": "vite build && electron-builder --dir"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
+    "electron": "^35",
+    "electron-builder": "^26",
     "vite": "^6"
+  },
+  "build": {
+    "appId": "com.ringdeck.app",
+    "productName": "RingDeck",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "out"
+    }
+  },
+  "dependencies": {
+    "heroicons": "^2.2.0"
   }
 }

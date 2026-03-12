@@ -17,68 +17,214 @@ html, body {
   height: 400px;
 }
 
-/* === Entrance === */
+/* === Entrance — hidden by default === */
 
 #ring .ring-center,
-#ring .ring-node,
-#ring .ring-connectors {
+#ring .ring-node {
   opacity: 0;
 }
 
-#ring.appear .ring-center {
-  animation: center-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+#ring .ring-orbit {
+  opacity: 0;
 }
 
-#ring.appear .ring-connectors {
-  animation: fade-in 0.6s ease-out 0.06s forwards;
+#ring.appear .ring-orbit {
+  animation: orbit-in 0.6s cubic-bezier(0.22, 0.68, 0, 1) 0.02s forwards;
+}
+
+#ring.appear .ring-center {
+  animation: center-in 0.5s cubic-bezier(0.22, 0.68, 0, 1) forwards;
 }
 
 #ring.appear .ring-node {
-  animation: node-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation: node-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes center-in {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-
-@keyframes fade-in {
+@keyframes orbit-in {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
 
-@keyframes node-in {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+@keyframes center-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+  50%  { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  75%  { transform: translate(-50%, -50%) scale(0.9); }
   100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* === Center === */
+@keyframes node-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(-30deg); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18) rotate(3deg); }
+  80%  { transform: translate(-50%, -50%) scale(0.95) rotate(-1deg); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+}
+
+/* === Center dot === */
 
 .ring-center {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: none;
+  background: radial-gradient(circle, #fff 0%, #3D2A7C 100%);
   pointer-events: none;
   z-index: 5;
+  transition: width 0.35s cubic-bezier(0.22, 0.68, 0, 1),
+              height 0.35s cubic-bezier(0.22, 0.68, 0, 1),
+              box-shadow 0.35s cubic-bezier(0.22, 0.68, 0, 1),
+              background 0.35s;
 }
 
-/* === Connectors === */
+.ring-center.active {
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle, #fff 10%, #0A84FF 70%, #2D1B69 100%);
+  box-shadow: 0 0 24px 6px rgba(10, 132, 255, 0.45),
+              0 0 8px 2px rgba(255, 255, 255, 0.5),
+              0 0 40px 12px rgba(45, 27, 105, 0.3);
+  animation: center-pulse 1.8s ease-in-out infinite;
+}
 
-.ring-connectors {
+@keyframes center-pulse {
+  0%, 100% {
+    box-shadow: 0 0 24px 6px rgba(10, 132, 255, 0.45),
+                0 0 8px 2px rgba(255, 255, 255, 0.5),
+                0 0 40px 12px rgba(45, 27, 105, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 32px 10px rgba(10, 132, 255, 0.6),
+                0 0 12px 3px rgba(255, 255, 255, 0.65),
+                0 0 50px 16px rgba(45, 27, 105, 0.4);
+  }
+}
+
+/* === Outer Arc (SVG) === */
+
+.ring-arc-svg {
   position: absolute;
   inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ring-arc-path {
+  fill: none;
+  stroke: url(#arcGradient);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(10, 132, 255, 0.7))
+          drop-shadow(0 0 3px rgba(45, 27, 105, 0.5));
+  transition: opacity 0.25s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+.ring-arc-path.active {
+  opacity: 1;
+  animation: arc-draw 0.4s cubic-bezier(0.22, 0.68, 0, 1) forwards,
+             arc-breathe 2.2s ease-in-out 0.4s infinite;
+}
+
+@keyframes arc-draw {
+  0%   { stroke-dashoffset: var(--arc-len); opacity: 0.3; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes arc-breathe {
+  0%, 100% { opacity: 0.75; stroke-width: 3; }
+  50%      { opacity: 1; stroke-width: 4; }
+}
+
+.ring-arc-glow {
+  fill: none;
+  stroke: rgba(45, 27, 105, 0.35);
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: blur(6px);
+  transition: opacity 0.25s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+.ring-arc-glow.active {
+  opacity: 1;
+  animation: glow-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; stroke-width: 14; }
+  50%      { opacity: 0.8; stroke-width: 18; }
+}
+
+/* === Selection beam === */
+
+.ring-beam {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
   pointer-events: none;
   z-index: 1;
 }
 
-.connector-line {
-  transition: stroke-opacity 0.25s, stroke-width 0.25s;
+.ring-beam-line {
+  stroke: url(#beamGradient);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ring-beam-line.active {
+  opacity: 1;
+  animation: beam-in 0.3s cubic-bezier(0.22, 0.68, 0, 1) forwards;
+}
+
+@keyframes beam-in {
+  0%   { opacity: 0; stroke-dashoffset: var(--beam-len); }
+  100% { opacity: 1; stroke-dashoffset: 0; }
+}
+
+.ring-beam-glow {
+  stroke: rgba(45, 27, 105, 0.2);
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: blur(8px);
+  transition: opacity 0.2s;
+}
+
+.ring-beam-glow.active {
+  opacity: 1;
+}
+
+/* === Sector glow === */
+
+.ring-sector-svg {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ring-sector-path {
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+.ring-sector-path.active {
+  opacity: 1;
+  animation: sector-fade-in 0.35s cubic-bezier(0.22, 0.68, 0, 1) forwards;
+}
+
+@keyframes sector-fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* === Node === */
@@ -95,60 +241,106 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.3s;
+  filter: drop-shadow(0 2px 6px rgba(26, 14, 62, 0.4));
 }
 
 .ring-node.hovered .ring-node-inner {
-  transform: scale(1.1) translateY(-2px);
+  transform: scale(1.45);
+  filter: drop-shadow(0 0 18px rgba(10, 132, 255, 0.5))
+          drop-shadow(0 0 6px rgba(61, 42, 124, 0.4))
+          drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
 }
 
 .ring-node-circle {
   width: 46px;
   height: 46px;
-  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 28px;
   line-height: 1;
-
-  /* Solid dark material — no backdrop-filter (doesn't work on transparent windows) */
-  background: rgba(30, 30, 30, 0.82);
   border: none;
-  box-shadow: none;
-
-  transition: background 0.25s;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #0A84FF 0%, #2D1B69 100%);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.3s,
+              box-shadow 0.3s;
+  color: #eee9f8;
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.2),
+              0 0 0 1px rgba(10, 132, 255, 0.1);
 }
 
 .ring-node.hovered .ring-node-circle {
-  background: rgba(50, 50, 50, 0.88);
-  box-shadow: none;
+  background: linear-gradient(145deg, #4FD1FF 0%, #0A84FF 100%);
+  box-shadow: 0 0 16px rgba(10, 132, 255, 0.4),
+              0 0 0 1px rgba(79, 209, 255, 0.2);
 }
 
-/* === Label === */
-
-.ring-node-label {
-  font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
-
-  background: rgba(30, 30, 30, 0.75);
-  border: none;
-  border-radius: 5px;
-  padding: 2px 8px;
-  box-shadow: none;
-
-  opacity: 0.85;
-  transform: scale(0.96);
-  transition: opacity 0.2s, transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+.ring-node-circle svg {
+  width: 24px;
+  height: 24px;
 }
 
-.ring-node.hovered .ring-node-label {
-  opacity: 1;
-  transform: scale(1);
+/* === Orbit ring === */
+
+.ring-orbit {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ring-orbit-circle {
+  fill: none;
+  stroke: rgba(61, 42, 124, 0.15);
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+  transition: stroke 0.3s, stroke-width 0.3s;
+  animation: orbit-rotate 30s linear infinite;
+  transform-origin: 200px 200px;
+}
+
+.ring-orbit-circle.active {
+  stroke: rgba(10, 132, 255, 0.2);
+  stroke-width: 1.5;
+}
+
+@keyframes orbit-rotate {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* === Node dot indicators === */
+
+.ring-node-dot {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%) scale(0);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #0A84FF;
+  box-shadow: 0 0 8px 3px rgba(10, 132, 255, 0.5),
+              0 0 4px 1px rgba(45, 27, 105, 0.4);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ring-node.hovered .ring-node-dot {
+  transform: translateX(-50%) scale(1);
+}
+
+/* === Particle ring (canvas) === */
+
+.ring-particles {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 1;
 }

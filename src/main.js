@@ -1,29 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+
+import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from './icons.js';
 
 let config = { shortcut: "", slices: [] };
 let activeRecorder = null;
 let expandedSlice = -1;
 let pickerOpen = false;
-
-const ICON_MAP = { terminal: "🖥️", globe: "🌐", default: "⚙️" };
-
-const EMOJI_CATEGORIES = [
-  { name: "Apps", icons: ["🖥️", "🌐", "📁", "📂", "📝", "💬", "📧", "📷"] },
-  { name: "Media", icons: ["🎵", "🎬", "🎮", "🎧", "📺", "🔊", "🔇", "🎤"] },
-  { name: "System", icons: ["⚙️", "🔧", "🔒", "🔓", "💡", "🔋", "📡", "🖨️"] },
-  { name: "Actions", icons: ["▶️", "⏸️", "⏹️", "🔄", "⬆️", "⬇️", "📋", "✂️"] },
-  { name: "Dev", icons: ["🐛", "🧪", "📦", "🚀", "🔥", "⚡", "🏗️", "🧩"] },
-  { name: "Social", icons: ["👤", "👥", "🏠", "⭐", "❤️", "🔔", "📌", "🏷️"] },
-  { name: "Files", icons: ["📄", "📊", "📈", "🗂️", "💾", "🗑️", "📎", "🔍"] },
-  { name: "Misc", icons: ["🌙", "☀️", "🎯", "🧲", "💎", "🛡️", "⚔️", "🪐"] },
-];
-
-function resolveIcon(icon) {
-  if (!icon) return "⚙️";
-  if (icon.length <= 2 || /\p{Emoji}/u.test(icon)) return icon;
-  return ICON_MAP[icon] || "⚙️";
-}
 
 function appName(path) {
   if (!path) return "";
@@ -33,192 +14,255 @@ function appName(path) {
 
 function actionSummary(action) {
   if (action.type === "Script") return action.command || "No command";
-  if (action.type === "Program") {
-    const p = action.path || "";
-    return appName(p) || "No program";
-  }
+  if (action.type === "Program") return appName(action.path) || "No program";
   return "";
 }
 
-// Migrate legacy configs that use path:"open" args:["-a","AppName"]
 function migrateLegacyProgram(s) {
   if (s.action.type !== "Program") return;
   if (s.action.path === "open" && s.action.args?.length >= 2 && s.action.args[0] === "-a") {
     const name = s.action.args[1];
-    // Try common macOS app locations
-    const candidates = [
-      `/Applications/${name}.app`,
-      `/System/Applications/${name}.app`,
-      `/System/Applications/Utilities/${name}.app`,
-    ];
-    s.action.path = candidates[0]; // default to /Applications
+    s.action.path = `/Applications/${name}.app`;
     s.action.args = [];
   }
 }
 
+// Migrate old emoji icons to heroicon names
+function migrateIcon(s) {
+  const EMOJI_TO_HERO = {
+    "🖥️": "computer-desktop",
+    "🌐": "globe-alt",
+    "⚙️": "cog-6-tooth",
+    "📁": "folder",
+    "📂": "folder-open",
+    "📝": "document-text",
+    "💬": "chat-bubble-left",
+    "📧": "envelope",
+    "📷": "camera",
+    "🎵": "musical-note",
+    "🎬": "film",
+    "🎮": "puzzle-piece",
+    "🔧": "wrench",
+    "🔒": "lock-closed",
+    "🔓": "lock-open",
+    "💡": "light-bulb",
+    "📡": "signal",
+    "🖨️": "printer",
+    "🐛": "bug-ant",
+    "🧪": "beaker",
+    "📦": "cube",
+    "🚀": "rocket-launch",
+    "🔥": "fire",
+    "⚡": "bolt",
+    "👤": "user",
+    "👥": "user-group",
+    "⭐": "star",
+    "❤️": "heart",
+    "🔔": "bell",
+    "📌": "map-pin",
+    "📄": "document",
+    "📊": "chart-bar",
+    "🗑️": "trash",
+    "🔍": "magnifying-glass",
+    "🌙": "moon",
+    "☀️": "sun",
+    "🎯": "cursor-arrow-rays",
+    "🛡️": "shield-check",
+  };
+  if (s.icon && EMOJI_TO_HERO[s.icon]) {
+    s.icon = EMOJI_TO_HERO[s.icon];
+  }
+  if (!s.icon || !ICON_MAP[s.icon]) {
+    s.icon = "cog-6-tooth";
+  }
+}
+
 async function loadConfig() {
-  config = await invoke("get_config");
+  config = await window.api.getConfig();
   for (const s of config.slices) {
-    s.icon = resolveIcon(s.icon);
     migrateLegacyProgram(s);
+    migrateIcon(s);
   }
   render();
 }
 
-function render() {
-  const app = document.querySelector("#app");
+// ─── Ring preview ───
 
-  const sliceRows = config.slices.map((s, i) => {
-    const active = i === expandedSlice;
-    let html = `
-      <div class="slice-row${active ? " active" : ""}" data-index="${i}">
-        <div class="slice-icon">${resolveIcon(s.icon)}</div>
-        <div class="slice-info">
-          <div class="slice-info-name">${s.label || "Untitled"}</div>
-          <div class="slice-info-detail">${actionSummary(s.action)}</div>
-        </div>
-        <span class="slice-chevron">›</span>
-      </div>`;
-    if (active) {
-      html += renderDetail(s, i);
-    }
-    return html;
-  }).join("");
-
-  app.innerHTML = `
-    <div class="config-panel">
-      <div class="app-header">
-        <div class="app-icon">⌘</div>
-        <div>
-          <h1>RingDeck</h1>
-          <div class="subtitle">Radial shortcut launcher</div>
-        </div>
-      </div>
-
-      <section>
-        <div class="section-label">Trigger</div>
-        <div class="group">
-          <div class="group-row">
-            <span class="group-row-label">Shortcut</span>
-            <span class="group-row-value">
-              <span class="shortcut-value" id="shortcut-display">${config.shortcut || "Not set"}</span>
-            </span>
-            <span class="group-row-action">
-              <button class="btn-inline" id="record-btn">Record</button>
-            </span>
-          </div>
-        </div>
-        <div class="section-footer">Press a key combination to activate the ring.</div>
-      </section>
-
-      ${renderMiniPreview()}
-
-      <section>
-        <div class="section-label">Actions</div>
-        <div class="group" id="slice-group">
-          ${sliceRows}
-          ${config.slices.length === 0 ? '<div class="empty-hint">No actions yet</div>' : ""}
-          <div class="add-row" id="add-slice-btn">
-            <span>Add Action</span>
-          </div>
-        </div>
-      </section>
-
-      <div class="actions-row">
-        <button class="btn-save" id="save-btn">Save</button>
-      </div>
-    </div>
-  `;
-
-  // Bind events
-  document.getElementById("record-btn").addEventListener("click", startRecording);
-  document.getElementById("add-slice-btn").addEventListener("click", addSlice);
-  document.getElementById("save-btn").addEventListener("click", saveConfig);
-
-  // Slice row clicks
-  document.querySelectorAll(".slice-row").forEach((row) => {
-    row.addEventListener("click", () => {
-      const idx = +row.dataset.index;
-      expandedSlice = expandedSlice === idx ? -1 : idx;
-      render();
-    });
-  });
-
-  // Detail bindings
-  if (expandedSlice >= 0 && expandedSlice < config.slices.length) {
-    bindDetail(expandedSlice);
-  }
-}
-
-// --- Mini ring preview ---
-
-function renderMiniPreview() {
-  if (config.slices.length === 0) return "";
+function renderPreview() {
   const n = config.slices.length;
-  const size = 160;
+  const size = 200;
   const center = size / 2;
-  const orbit = 55;
+  const orbit = 68;
 
   const nodes = config.slices.map((s, i) => {
     const angle = (2 * Math.PI * i) / n - Math.PI / 2;
     const x = center + orbit * Math.cos(angle);
     const y = center + orbit * Math.sin(angle);
-    return `<div class="ring-mini-node" style="left:${x}px;top:${y}px">${resolveIcon(s.icon)}</div>`;
+    const hl = i === expandedSlice ? " highlight" : "";
+    return `<div class="ring-preview-node${hl}" data-preview="${i}" style="left:${x}px;top:${y}px"><span class="preview-icon">${resolveIcon(s.icon)}</span></div>`;
   }).join("");
 
   return `
-    <div class="ring-mini">
-      <div class="ring-mini-bg">
-        <div class="ring-mini-center"></div>
+    <div class="ring-preview-wrap">
+      <div class="ring-preview">
+        <div class="ring-preview-bg"></div>
+        <svg class="ring-preview-orbit" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="${orbit}" />
+        </svg>
+        <div class="ring-preview-center"></div>
         ${nodes}
       </div>
     </div>`;
 }
 
-// --- Inline Detail ---
+// ─── Action cards ───
 
-function renderDetail(s, index) {
-  const at = s.action.type;
-  const programPath = at === "Program" ? (s.action.path || "") : "";
-  const programArgs = at === "Program" ? (s.action.args || []).join(" ") : "";
-  const pathDisplay = programPath ? appName(programPath) : "";
-
-  return `
-    <div class="slice-detail" data-detail="${index}">
-      <div class="detail-field">
-        <span class="detail-field-label">Icon</span>
-        <button class="icon-btn" id="icon-btn-${index}">${resolveIcon(s.icon)}</button>
-        <input type="text" id="label-${index}" value="${escAttr(s.label)}" placeholder="Name" style="flex:1" />
-      </div>
-      <div class="detail-field">
-        <span class="detail-field-label">Type</span>
-        <select id="type-${index}">
-          <option value="Script"${at === "Script" ? " selected" : ""}>Script</option>
-          <option value="Program"${at === "Program" ? " selected" : ""}>Program</option>
-        </select>
-      </div>
-      ${at === "Script" ? `
-        <div class="detail-field">
-          <span class="detail-field-label">Command</span>
-          <input type="text" id="cmd-${index}" value="${escAttr(s.action.command || "")}" placeholder="e.g. open -a Safari" />
+function renderActionCard(s, i) {
+  const active = i === expandedSlice;
+  let html = `
+    <div class="action-card${active ? " active" : ""}" data-card="${i}">
+      <div class="action-card-header" data-index="${i}">
+        <span class="action-card-index">${i + 1}</span>
+        <span class="action-card-icon">${resolveIcon(s.icon)}</span>
+        <div class="action-card-info">
+          <div class="action-card-name">${s.label || "Untitled"}</div>
+          <div class="action-card-desc">${actionSummary(s.action)}</div>
         </div>
-      ` : `
-        <div class="detail-field">
-          <span class="detail-field-label">Program</span>
-          <div class="file-picker">
-            <span class="file-picker-path${pathDisplay ? "" : " empty"}" id="path-${index}">${pathDisplay || "Choose..."}</span>
-            <button class="btn-browse" id="browse-${index}">Browse</button>
+        <span class="action-card-chevron">›</span>
+      </div>`;
+
+  if (active) {
+    const at = s.action.type;
+    const programPath = at === "Program" ? (s.action.path || "") : "";
+    const programArgs = at === "Program" ? (s.action.args || []).join(" ") : "";
+    const pathDisplay = programPath ? appName(programPath) : "";
+
+    html += `
+      <div class="action-detail" data-detail="${i}">
+        <div class="detail-divider"></div>
+        <div class="detail-grid">
+          <span class="detail-label">Icon</span>
+          <div class="detail-input-row">
+            <button class="icon-btn" id="icon-btn-${i}">${resolveIcon(s.icon)}</button>
+            <input type="text" id="label-${i}" value="${escAttr(s.label)}" placeholder="Action name" />
+          </div>
+
+          <span class="detail-label">Type</span>
+          <div>
+            <select id="type-${i}">
+              <option value="Script"${at === "Script" ? " selected" : ""}>Script</option>
+              <option value="Program"${at === "Program" ? " selected" : ""}>Program</option>
+            </select>
+          </div>
+
+          ${at === "Script" ? `
+            <span class="detail-label">Command</span>
+            <div>
+              <input type="text" id="cmd-${i}" value="${escAttr(s.action.command || "")}" placeholder="e.g. open -a Safari" />
+            </div>
+          ` : `
+            <span class="detail-label">Program</span>
+            <div>
+              <div class="file-picker">
+                <span class="file-picker-path${pathDisplay ? "" : " empty"}" id="path-${i}">${pathDisplay || "Choose app..."}</span>
+                <button class="btn-browse" id="browse-${i}">Browse</button>
+              </div>
+            </div>
+            <span class="detail-label">Args</span>
+            <div>
+              <input type="text" id="args-${i}" value="${escAttr(programArgs)}" placeholder="Optional arguments" />
+            </div>
+          `}
+        </div>
+        <div class="detail-actions">
+          <button class="btn-delete" id="delete-${i}">Remove</button>
+        </div>
+      </div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ─── Main render ───
+
+function render() {
+  const app = document.querySelector("#app");
+  const n = config.slices.length;
+  const cards = config.slices.map((s, i) => renderActionCard(s, i)).join("");
+
+  app.innerHTML = `
+    <div class="config-layout">
+      <div class="left-pane">
+        <div class="app-brand">
+          <img class="app-logo" src="logo_ring_2_1.png" alt="" />
+          <h1>RingDeck</h1>
+        </div>
+        <div class="app-version">v0.1.0</div>
+
+        ${renderPreview()}
+
+        <div class="shortcut-area">
+          <div class="shortcut-label">Activation shortcut</div>
+          <div class="shortcut-box" id="shortcut-box">
+            <span class="shortcut-keys" id="shortcut-display">${config.shortcut || "Not set"}</span>
+            <span class="shortcut-action" id="shortcut-action">Record</span>
           </div>
         </div>
-        <div class="detail-field">
-          <span class="detail-field-label">Arguments</span>
-          <input type="text" id="args-${index}" value="${escAttr(programArgs)}" placeholder="Optional" />
-        </div>
-      `}
-      <div class="detail-footer">
-        <button class="btn-delete" id="delete-${index}">Remove Action</button>
       </div>
-    </div>`;
+
+      <div class="right-pane">
+        <div class="right-header">
+          <span class="right-title">Actions</span>
+          <span class="slice-count">${n} item${n !== 1 ? "s" : ""}</span>
+        </div>
+
+        <div class="action-list" id="action-list">
+          ${n === 0 ? `
+            <div class="empty-state">
+              <div class="empty-state-icon">${resolveIcon('cog-6-tooth')}</div>
+              <div class="empty-state-text">No actions yet</div>
+              <div class="empty-state-hint">Add your first action to get started</div>
+            </div>
+          ` : cards}
+          <button class="add-action-btn" id="add-btn">
+            <span class="plus">+</span> Add Action
+          </button>
+        </div>
+
+        <div class="bottom-bar">
+          <span class="save-status" id="save-status"></span>
+          <button class="btn-save" id="save-btn">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  bindEvents();
+}
+
+function bindEvents() {
+  document.getElementById("shortcut-box").addEventListener("click", startRecording);
+  document.getElementById("add-btn").addEventListener("click", addSlice);
+  document.getElementById("save-btn").addEventListener("click", saveConfig);
+
+  document.querySelectorAll(".action-card-header").forEach((header) => {
+    header.addEventListener("click", () => {
+      const idx = +header.dataset.index;
+      expandedSlice = expandedSlice === idx ? -1 : idx;
+      render();
+      if (expandedSlice >= 0) {
+        requestAnimationFrame(() => {
+          const card = document.querySelector(`.action-card[data-card="${expandedSlice}"]`);
+          if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
+    });
+  });
+
+  if (expandedSlice >= 0 && expandedSlice < config.slices.length) {
+    bindDetail(expandedSlice);
+  }
 }
 
 function bindDetail(idx) {
@@ -228,11 +272,9 @@ function bindDetail(idx) {
   if (labelInput) {
     labelInput.addEventListener("input", (e) => {
       s.label = e.target.value;
-      // Update row live
-      const row = document.querySelector(`.slice-row[data-index="${idx}"] .slice-info-name`);
-      if (row) row.textContent = s.label || "Untitled";
+      const nameEl = document.querySelector(`.action-card[data-card="${idx}"] .action-card-name`);
+      if (nameEl) nameEl.textContent = s.label || "Untitled";
     });
-    // Prevent row toggle when clicking inside detail
     labelInput.addEventListener("click", (e) => e.stopPropagation());
   }
 
@@ -249,43 +291,32 @@ function bindDetail(idx) {
     });
   }
 
-  // Script
   const cmdInput = document.getElementById(`cmd-${idx}`);
   if (cmdInput) {
     cmdInput.addEventListener("click", (e) => e.stopPropagation());
     cmdInput.addEventListener("input", (e) => {
       s.action = { type: "Script", command: e.target.value };
-      const detail = document.querySelector(`.slice-row[data-index="${idx}"] .slice-info-detail`);
-      if (detail) detail.textContent = e.target.value || "No command";
+      const desc = document.querySelector(`.action-card[data-card="${idx}"] .action-card-desc`);
+      if (desc) desc.textContent = e.target.value || "No command";
     });
   }
 
-  // Program: browse
   const browseBtn = document.getElementById(`browse-${idx}`);
   if (browseBtn) {
     browseBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
-      const selected = await open({
-        multiple: false,
-        directory: false,
-        defaultPath: "/Applications",
-        filters: [{ name: "Applications", extensions: ["app"] }],
-      });
+      const selected = await window.api.openFileDialog();
       if (selected) {
         s.action.path = selected;
         const name = appName(selected);
         const display = document.getElementById(`path-${idx}`);
-        if (display) {
-          display.textContent = name;
-          display.classList.remove("empty");
-        }
-        const detail = document.querySelector(`.slice-row[data-index="${idx}"] .slice-info-detail`);
-        if (detail) detail.textContent = name;
+        if (display) { display.textContent = name; display.classList.remove("empty"); }
+        const desc = document.querySelector(`.action-card[data-card="${idx}"] .action-card-desc`);
+        if (desc) desc.textContent = name;
       }
     });
   }
 
-  // Program: args
   const argsInput = document.getElementById(`args-${idx}`);
   if (argsInput) {
     argsInput.addEventListener("click", (e) => e.stopPropagation());
@@ -294,7 +325,6 @@ function bindDetail(idx) {
     });
   }
 
-  // Icon picker
   const iconBtn = document.getElementById(`icon-btn-${idx}`);
   if (iconBtn) {
     iconBtn.addEventListener("click", (e) => {
@@ -303,7 +333,6 @@ function bindDetail(idx) {
     });
   }
 
-  // Delete
   const deleteBtn = document.getElementById(`delete-${idx}`);
   if (deleteBtn) {
     deleteBtn.addEventListener("click", (e) => {
@@ -314,56 +343,152 @@ function bindDetail(idx) {
     });
   }
 
-  // Stop propagation on detail area
-  const detail = document.querySelector(`.slice-detail[data-detail="${idx}"]`);
+  const detail = document.querySelector(`.action-detail[data-detail="${idx}"]`);
   if (detail) {
     detail.addEventListener("click", (e) => e.stopPropagation());
   }
 }
 
-// --- Icon Picker ---
+// ─── Icon Picker ───
+
+function buildPickerContent(body, currentIcon, query) {
+  const q = (query || "").toLowerCase().trim();
+  let html = "";
+  let hasResults = false;
+
+  for (const cat of ICON_CATEGORIES) {
+    const matched = cat.icons.filter(name => !q || name.includes(q));
+    if (matched.length === 0) continue;
+    hasResults = true;
+
+    html += `<div class="icon-picker-category">${cat.name}</div><div class="icon-picker-grid">`;
+    for (const name of matched) {
+      const sel = name === currentIcon ? " selected" : "";
+      html += `<button class="icon-picker-cell${sel}" data-icon="${name}" title="${name}">${resolveIcon(name)}</button>`;
+    }
+    html += `</div>`;
+  }
+
+  // Also search all icons not in categories
+  if (q) {
+    const catIcons = new Set(ICON_CATEGORIES.flatMap(c => c.icons));
+    const extras = Object.keys(ICON_MAP).filter(n => !catIcons.has(n) && n.includes(q));
+    if (extras.length > 0) {
+      hasResults = true;
+      html += `<div class="icon-picker-category">Other</div><div class="icon-picker-grid">`;
+      for (const name of extras) {
+        const sel = name === currentIcon ? " selected" : "";
+        html += `<button class="icon-picker-cell${sel}" data-icon="${name}" title="${name}">${resolveIcon(name)}</button>`;
+      }
+      html += `</div>`;
+    }
+  }
+
+  if (!hasResults) {
+    html = `<div class="icon-picker-empty">No icons match "${escAttr(q)}"</div>`;
+  }
+
+  body.innerHTML = html;
+}
 
 function openIconPicker(idx) {
   closeIconPicker();
   pickerOpen = true;
 
+  const s = config.slices[idx];
+  const currentIcon = s.icon;
+
   const btn = document.getElementById(`icon-btn-${idx}`);
   const rect = btn.getBoundingClientRect();
 
+  // Overlay
   const overlay = document.createElement("div");
   overlay.className = "icon-picker-overlay";
   overlay.addEventListener("click", closeIconPicker);
 
+  // Picker container
   const picker = document.createElement("div");
   picker.className = "icon-picker";
-  picker.style.left = Math.min(rect.left, window.innerWidth - 310) + "px";
-  picker.style.top = (rect.bottom + 4) + "px";
 
-  let html = "";
-  for (const cat of EMOJI_CATEGORIES) {
-    html += `<div class="icon-picker-category">${cat.name}</div><div class="icon-picker-grid">`;
-    for (const emoji of cat.icons) {
-      html += `<button class="icon-picker-cell" data-emoji="${emoji}">${emoji}</button>`;
+  // Position: try to fit in viewport
+  const left = Math.min(Math.max(rect.left, 8), window.innerWidth - 330);
+  const top = Math.min(Math.max(rect.bottom + 6, 8), window.innerHeight - 430);
+  picker.style.left = left + "px";
+  picker.style.top = top + "px";
+
+  // Header: search + selected indicator
+  const header = document.createElement("div");
+  header.className = "icon-picker-header";
+
+  const search = document.createElement("input");
+  search.type = "text";
+  search.className = "icon-picker-search";
+  search.placeholder = "Search icons...";
+  search.autocomplete = "off";
+  search.spellcheck = false;
+  header.appendChild(search);
+
+  // Selected indicator
+  const selectedDiv = document.createElement("div");
+  selectedDiv.className = "icon-picker-selected";
+  selectedDiv.innerHTML = `
+    <span class="icon-picker-selected-icon">${resolveIcon(currentIcon)}</span>
+    <span class="icon-picker-selected-name">${currentIcon}</span>
+    <span class="icon-picker-selected-check">Selected</span>
+  `;
+  header.appendChild(selectedDiv);
+
+  picker.appendChild(header);
+
+  // Body: scrollable grid
+  const body = document.createElement("div");
+  body.className = "icon-picker-body";
+  picker.appendChild(body);
+
+  // Initial render
+  buildPickerContent(body, currentIcon, "");
+
+  // Scroll to selected
+  requestAnimationFrame(() => {
+    const sel = body.querySelector(".icon-picker-cell.selected");
+    if (sel) sel.scrollIntoView({ block: "center", behavior: "instant" });
+    search.focus();
+  });
+
+  // Search handler
+  search.addEventListener("input", () => {
+    buildPickerContent(body, currentIcon, search.value);
+  });
+
+  // Keyboard nav
+  search.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeIconPicker();
     }
-    html += `</div>`;
-  }
-  picker.innerHTML = html;
-  picker.addEventListener("click", (e) => {
+  });
+
+  // Click to select
+  body.addEventListener("click", (e) => {
     e.stopPropagation();
     const cell = e.target.closest(".icon-picker-cell");
     if (!cell) return;
-    const s = config.slices[idx];
-    s.icon = cell.dataset.emoji;
-    // Update inline
+
+    const iconName = cell.dataset.icon;
+    s.icon = iconName;
+
+    // Update UI inline
+    const cardIcon = document.querySelector(`.action-card[data-card="${idx}"] .action-card-icon`);
+    if (cardIcon) cardIcon.innerHTML = resolveIcon(iconName);
     const iconEl = document.getElementById(`icon-btn-${idx}`);
-    if (iconEl) iconEl.textContent = cell.dataset.emoji;
-    const rowIcon = document.querySelector(`.slice-row[data-index="${idx}"] .slice-icon`);
-    if (rowIcon) rowIcon.textContent = cell.dataset.emoji;
-    // Update mini preview
-    const miniNodes = document.querySelectorAll(".ring-mini-node");
-    if (miniNodes[idx]) miniNodes[idx].textContent = cell.dataset.emoji;
+    if (iconEl) iconEl.innerHTML = resolveIcon(iconName);
+    const previewNode = document.querySelector(`.ring-preview-node[data-preview="${idx}"] .preview-icon`);
+    if (previewNode) previewNode.innerHTML = resolveIcon(iconName);
+
     closeIconPicker();
   });
+
+  // Prevent propagation
+  picker.addEventListener("click", (e) => e.stopPropagation());
 
   document.body.appendChild(overlay);
   document.body.appendChild(picker);
@@ -379,19 +504,19 @@ function escAttr(str) {
   return (str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
-// --- Add Slice ---
+// ─── Add Slice ───
 
 function addSlice() {
   config.slices.push({
     label: "",
-    icon: "⚙️",
+    icon: "cog-6-tooth",
     action: { type: "Script", command: "" },
   });
   expandedSlice = config.slices.length - 1;
   render();
 }
 
-// --- Recording ---
+// ─── Shortcut Recording ───
 
 function stopRecording() {
   if (activeRecorder) {
@@ -403,12 +528,13 @@ function stopRecording() {
 function startRecording() {
   stopRecording();
 
+  const box = document.getElementById("shortcut-box");
   const display = document.getElementById("shortcut-display");
-  const btn = document.getElementById("record-btn");
+  const action = document.getElementById("shortcut-action");
 
   display.textContent = "Press keys...";
-  display.classList.add("recording");
-  btn.textContent = "Cancel";
+  box.classList.add("recording");
+  action.textContent = "Cancel";
 
   function onKeyDown(e) {
     e.preventDefault();
@@ -448,16 +574,15 @@ function startRecording() {
     if (e.altKey) mods.push("Alt");
     if (e.shiftKey) mods.push("Shift");
     if (e.metaKey) mods.push("Super");
-
     display.textContent = mods.length === 0 ? "Press keys..." : mods.join(" + ") + " + ...";
   }
 
   function cancel() {
     cleanup();
     activeRecorder = null;
-    display.classList.remove("recording");
+    box.classList.remove("recording");
     display.textContent = config.shortcut || "Not set";
-    btn.textContent = "Record";
+    action.textContent = "Record";
   }
 
   function finish() {
@@ -473,21 +598,31 @@ function startRecording() {
 
   document.addEventListener("keydown", onKeyDown, true);
   document.addEventListener("keyup", onKeyUp, true);
-  btn.onclick = cancel;
+
+  box.onclick = (e) => {
+    e.stopPropagation();
+    cancel();
+  };
+
   activeRecorder = { cleanup };
 }
 
-// --- Save ---
+// ─── Save ───
 
 async function saveConfig() {
   try {
-    await invoke("save_config", { config });
+    await window.api.saveConfig(config);
     const btn = document.getElementById("save-btn");
+    const status = document.getElementById("save-status");
     btn.textContent = "Saved";
     btn.classList.add("saved");
+    status.textContent = "Changes saved";
+    status.classList.add("visible");
     setTimeout(() => {
       btn.textContent = "Save";
       btn.classList.remove("saved");
+      status.textContent = "";
+      status.classList.remove("visible");
     }, 1500);
   } catch (e) {
     alert("Failed to save: " + e);
