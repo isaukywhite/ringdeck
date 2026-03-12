@@ -5,7 +5,10 @@ const RING_SIZE = 400;
 const CENTER = RING_SIZE / 2;
 const NODE_ORBIT = 95;
 const ARC_RADIUS = 135;
-const ARC_SPREAD = Math.PI / 3;
+function arcSpread(n) {
+  if (n <= 1) return Math.PI / 3;
+  return Math.min(Math.PI / 3, 0.85 * Math.PI / n);
+}
 
 let slices = [];
 let hoveredIndex = -1;
@@ -177,8 +180,9 @@ function startParticles() {
         const hAngle = (2 * Math.PI * hoveredIndex) / n - Math.PI / 2;
         let diff = Math.abs(p.angle % (Math.PI * 2) - ((hAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
         if (diff > Math.PI) diff = Math.PI * 2 - diff;
-        if (diff < ARC_SPREAD) {
-          const t = 1 - diff / ARC_SPREAD;
+        const spread = arcSpread(n);
+        if (diff < spread) {
+          const t = 1 - diff / spread;
           alpha = Math.min(1, alpha + 0.45 * t);
           r = Math.round(r + (10 - r) * t * 0.6);
           g = Math.round(g + (132 - g) * t * 0.6);
@@ -230,8 +234,9 @@ function updateHover(idx) {
     const nodeAngle = (2 * Math.PI * idx) / n - Math.PI / 2;
     const pos = nodePosition(idx, n);
 
-    const a1 = nodeAngle - ARC_SPREAD;
-    const a2 = nodeAngle + ARC_SPREAD;
+    const spread = arcSpread(n);
+    const a1 = nodeAngle - spread;
+    const a2 = nodeAngle + spread;
     const arcD = describeArc(CENTER, CENTER, ARC_RADIUS, a1, a2);
 
     if (arcPath) {
