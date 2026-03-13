@@ -1,11 +1,16 @@
 
 import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from './icons.js';
 
-let config = { shortcut: "", slices: [] };
+let config = { profiles: [] };
 let activeRecorder = null;
 let expandedSlice = -1;
 let pickerOpen = false;
 let dragSrcIndex = -1;
+let activeProfileIndex = 0;
+
+function activeProfile() {
+  return config.profiles[activeProfileIndex] || config.profiles[0];
+}
 
 function appName(path) {
   if (!path) return "";
@@ -80,22 +85,39 @@ function migrateIcon(s) {
 
 async function loadConfig() {
   config = await window.api.getConfig();
-  for (const s of config.slices) {
-    migrateLegacyProgram(s);
-    migrateIcon(s);
+  // Migrate legacy format if needed
+  if (config.slices && !config.profiles) {
+    config = {
+      profiles: [{
+        id: "default",
+        name: "Default",
+        shortcut: config.shortcut || "",
+        slices: config.slices,
+      }],
+    };
   }
+  for (const profile of config.profiles) {
+    for (const s of profile.slices) {
+      migrateLegacyProgram(s);
+      migrateIcon(s);
+    }
+  }
+  activeProfileIndex = 0;
+  expandedSlice = -1;
   render();
 }
 
 // ─── Ring preview ───
 
 function renderPreview() {
-  const n = config.slices.length;
+  const profile = activeProfile();
+  const slices = profile ? profile.slices : [];
+  const n = slices.length;
   const size = 200;
   const center = size / 2;
   const orbit = 68;
 
-  const nodes = config.slices.map((s, i) => {
+  const nodes = slices.map((s, i) => {
     const angle = (2 * Math.PI * i) / n - Math.PI / 2;
     const x = center + orbit * Math.cos(angle);
     const y = center + orbit * Math.sin(angle);
@@ -186,12 +208,32 @@ function renderActionCard(s, i) {
   return html;
 }
 
+// ─── Profile tabs ───
+
+function renderProfileTabs() {
+  const tabs = config.profiles.map((p, i) => {
+    const active = i === activeProfileIndex ? " active" : "";
+    return `<button class="profile-tab${active}" data-profile="${i}">
+      <span class="profile-tab-name" data-profile-name="${i}">${escAttr(p.name || 'Untitled')}</span>
+    </button>`;
+  }).join("");
+
+  return `<div class="profile-tabs">
+    ${tabs}
+    <button class="profile-tab profile-tab-add" id="add-profile-btn" title="Add profile">+</button>
+  </div>`;
+}
+
 // ─── Main render ───
 
 function render() {
   const app = document.querySelector("#app");
-  const n = config.slices.length;
-  const cards = config.slices.map((s, i) => renderActionCard(s, i)).join("");
+  const profile = activeProfile();
+  if (!profile) return;
+
+  const slices = profile.slices;
+  const n = slices.length;
+  const cards = slices.map((s, i) => renderActionCard(s, i)).join("");
 
   app.innerHTML = `
     <div class="config-layout">
@@ -207,16 +249,24 @@ function render() {
         <div class="shortcut-area">
           <div class="shortcut-label">Activation shortcut</div>
           <div class="shortcut-box" id="shortcut-box">
-            <span class="shortcut-keys" id="shortcut-display">${config.shortcut || "Not set"}</span>
+            <span class="shortcut-keys" id="shortcut-display">${profile.shortcut || "Not set"}</span>
             <span class="shortcut-action" id="shortcut-action">Record</span>
           </div>
         </div>
       </div>
 
       <div class="right-pane">
+        ${renderProfileTabs()}
+
         <div class="right-header">
-          <span class="right-title">Actions</span>
+          <span class="right-title">${escAttr(profile.name || 'Untitled')}</span>
           <span class="slice-count">${n} item${n !== 1 ? "s" : ""}</span>
+          ${config.profiles.length > 1 ? `<button class="btn-delete-profile" id="delete-profile-btn" title="Delete this profile">🗑</button>` : ''}
+        </div>
+
+        <div class="profile-name-row">
+          <label class="detail-label">Profile name</label>
+          <input type="text" id="profile-name-input" value="${escAttr(profile.name || '')}" placeholder="Profile name" />
         </div>
 
         <div class="action-list" id="action-list">
@@ -248,6 +298,42 @@ function bindEvents() {
   document.getElementById("add-btn").addEventListener("click", addSlice);
   document.getElementById("save-btn").addEventListener("click", saveConfig);
 
+  // Profile tabs
+  document.querySelectorAll(".profile-tab[data-profile]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const idx = +tab.dataset.profile;
+      if (idx !== activeProfileIndex) {
+        activeProfileIndex = idx;
+        expandedSlice = -1;
+        render();
+      }
+    });
+  });
+
+  const addProfileBtn = document.getElementById("add-profile-btn");
+  if (addProfileBtn) addProfileBtn.addEventListener("click", addProfile);
+
+  const deleteProfileBtn = document.getElementById("delete-profile-btn");
+  if (deleteProfileBtn) deleteProfileBtn.addEventListener("click", deleteProfile);
+
+  // Profile name input
+  const profileNameInput = document.getElementById("profile-name-input");
+  if (profileNameInput) {
+    profileNameInput.addEventListener("input", (e) => {
+      const profile = activeProfile();
+      if (profile) {
+        profile.name = e.target.value;
+        // Update tab text
+        const tabName = document.querySelector(`.profile-tab-name[data-profile-name="${activeProfileIndex}"]`);
+        if (tabName) tabName.textContent = e.target.value || 'Untitled';
+        // Update header
+        const title = document.querySelector('.right-title');
+        if (title) title.textContent = e.target.value || 'Untitled';
+      }
+    });
+    profileNameInput.addEventListener("click", (e) => e.stopPropagation());
+  }
+
   document.querySelectorAll(".action-card-header").forEach((header) => {
     header.addEventListener("click", () => {
       const idx = +header.dataset.index;
@@ -262,7 +348,7 @@ function bindEvents() {
     });
   });
 
-  if (expandedSlice >= 0 && expandedSlice < config.slices.length) {
+  if (expandedSlice >= 0 && expandedSlice < (activeProfile()?.slices.length || 0)) {
     bindDetail(expandedSlice);
   }
 
@@ -299,9 +385,10 @@ function bindEvents() {
       e.stopPropagation();
       if (dragSrcIndex === -1 || dragSrcIndex === idx) return;
 
+      const profile = activeProfile();
       const src = dragSrcIndex;
-      const [moved] = config.slices.splice(src, 1);
-      config.slices.splice(idx, 0, moved);
+      const [moved] = profile.slices.splice(src, 1);
+      profile.slices.splice(idx, 0, moved);
 
       if (expandedSlice === src) expandedSlice = idx;
       else if (src < idx && expandedSlice > src && expandedSlice <= idx) expandedSlice--;
@@ -314,7 +401,9 @@ function bindEvents() {
 }
 
 function bindDetail(idx) {
-  const s = config.slices[idx];
+  const profile = activeProfile();
+  if (!profile) return;
+  const s = profile.slices[idx];
 
   const labelInput = document.getElementById(`label-${idx}`);
   if (labelInput) {
@@ -555,12 +644,39 @@ function escAttr(str) {
 // ─── Add Slice ───
 
 function addSlice() {
-  config.slices.push({
+  const profile = activeProfile();
+  if (!profile) return;
+  profile.slices.push({
     label: "",
     icon: "cog-6-tooth",
     action: { type: "Script", command: "" },
   });
-  expandedSlice = config.slices.length - 1;
+  expandedSlice = profile.slices.length - 1;
+  render();
+}
+
+// ─── Profile management ───
+
+function addProfile() {
+  const id = 'profile_' + Date.now();
+  config.profiles.push({
+    id,
+    name: "New Profile",
+    shortcut: "",
+    slices: [],
+  });
+  activeProfileIndex = config.profiles.length - 1;
+  expandedSlice = -1;
+  render();
+}
+
+function deleteProfile() {
+  if (config.profiles.length <= 1) return;
+  config.profiles.splice(activeProfileIndex, 1);
+  if (activeProfileIndex >= config.profiles.length) {
+    activeProfileIndex = config.profiles.length - 1;
+  }
+  expandedSlice = -1;
   render();
 }
 
@@ -612,7 +728,9 @@ function startRecording() {
     };
     const key = keyMap[e.key] || e.key.toUpperCase();
     mods.push(key);
-    config.shortcut = mods.join("+");
+    const shortcutStr = mods.join("+");
+    const profile = activeProfile();
+    if (profile) profile.shortcut = shortcutStr;
     finish();
   }
 
@@ -629,7 +747,7 @@ function startRecording() {
     cleanup();
     activeRecorder = null;
     box.classList.remove("recording");
-    display.textContent = config.shortcut || "Not set";
+    display.textContent = (activeProfile()?.shortcut) || "Not set";
     action.textContent = "Record";
   }
 

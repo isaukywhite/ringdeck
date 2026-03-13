@@ -17,35 +17,62 @@ const fs = require("fs");
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 
 const DEFAULT_CONFIG = {
-  shortcut: "Alt+Space",
-  slices: [
+  profiles: [
     {
-      label: "Terminal",
-      icon: "terminal",
-      action: {
-        type: "Program",
-        path: "/System/Applications/Utilities/Terminal.app",
-        args: [],
-      },
-    },
-    {
-      label: "Browser",
-      icon: "globe",
-      action: {
-        type: "Program",
-        path: "/Applications/Safari.app",
-        args: [],
-      },
+      id: "default",
+      name: "Default",
+      shortcut: "Alt+Space",
+      slices: [
+        {
+          label: "Terminal",
+          icon: "terminal",
+          action: {
+            type: "Program",
+            path: "/System/Applications/Utilities/Terminal.app",
+            args: [],
+          },
+        },
+        {
+          label: "Browser",
+          icon: "globe",
+          action: {
+            type: "Program",
+            path: "/Applications/Safari.app",
+            args: [],
+          },
+        },
+      ],
     },
   ],
 };
 
 let config = loadConfig();
+let activeProfileIndex = 0;
+
+function migrateConfig(cfg) {
+  // Migrate legacy format (shortcut + slices) to profiles format
+  if (cfg.slices && !cfg.profiles) {
+    const migrated = {
+      profiles: [
+        {
+          id: "default",
+          name: "Default",
+          shortcut: cfg.shortcut || "Alt+Space",
+          slices: cfg.slices,
+        },
+      ],
+    };
+    saveConfigToDisk(migrated);
+    return migrated;
+  }
+  return cfg;
+}
 
 function loadConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      return migrateConfig(raw);
     }
   } catch {}
   saveConfigToDisk(DEFAULT_CONFIG);
@@ -139,7 +166,8 @@ function createRingWindow() {
   });
 }
 
-function showRingAtCursor() {
+function showRingAtCursor(profileIndex) {
+  activeProfileIndex = profileIndex;
   if (!ringWindow || ringWindow.isDestroyed()) {
     createRingWindow();
   }
@@ -147,28 +175,46 @@ function showRingAtCursor() {
   const x = Math.round(cursor.x - 200);
   const y = Math.round(cursor.y - 200);
   ringWindow.setBounds({ x, y, width: 400, height: 400 });
+
+  // Send active profile slices to the ring window
+  const profile = config.profiles[profileIndex];
+  if (profile) {
+    const json = JSON.stringify(profile.slices);
+    ringWindow.webContents.executeJavaScript(
+      `window.__updateSlices(${json})`
+    );
+  }
+
   ringWindow.show();
   ringWindow.focus();
 }
 
 // ─── Global Shortcut ───
 
-let currentShortcut = null;
+let registeredShortcuts = [];
 
-function registerShortcut(accelerator) {
-  if (currentShortcut) {
-    globalShortcut.unregister(currentShortcut);
-    currentShortcut = null;
+function registerAllShortcuts() {
+  // Unregister all previous shortcuts
+  for (const s of registeredShortcuts) {
+    try { globalShortcut.unregister(s); } catch {}
   }
+  registeredShortcuts = [];
 
-  // Map Super to Meta for Electron
-  const mapped = accelerator.replace(/Super/g, "Meta");
+  // Register one shortcut per profile
+  for (let i = 0; i < config.profiles.length; i++) {
+    const profile = config.profiles[i];
+    if (!profile.shortcut) continue;
 
-  try {
-    globalShortcut.register(mapped, showRingAtCursor);
-    currentShortcut = mapped;
-  } catch (e) {
-    console.error("Failed to register shortcut:", mapped, e);
+    // Map Super to Meta for Electron
+    const mapped = profile.shortcut.replace(/Super/g, "Meta");
+    const idx = i; // capture for closure
+
+    try {
+      globalShortcut.register(mapped, () => showRingAtCursor(idx));
+      registeredShortcuts.push(mapped);
+    } catch (e) {
+      console.error(`Failed to register shortcut for profile "${profile.name}":`, mapped, e);
+    }
   }
 }
 
@@ -208,27 +254,33 @@ function setupTray() {
 
 ipcMain.handle("get_config", () => config);
 
+ipcMain.handle("get_active_profile", () => {
+  return {
+    profileIndex: activeProfileIndex,
+    profile: config.profiles[activeProfileIndex] || config.profiles[0],
+  };
+});
+
 ipcMain.handle("save_config", (_e, newConfig) => {
-  const oldShortcut = config.shortcut;
   saveConfigToDisk(newConfig);
+  config = newConfig;
 
-  if (oldShortcut !== newConfig.shortcut) {
-    registerShortcut(newConfig.shortcut);
-  }
+  // Re-register all shortcuts (any could have changed)
+  registerAllShortcuts();
 
-  // Update ring window live
-  if (ringWindow) {
-    const json = JSON.stringify(newConfig.slices);
+  // Update ring window live with active profile
+  if (ringWindow && config.profiles[activeProfileIndex]) {
+    const json = JSON.stringify(config.profiles[activeProfileIndex].slices);
     ringWindow.webContents.executeJavaScript(
       `window.__updateSlices(${json})`
     );
   }
-
-  config = newConfig;
 });
 
 ipcMain.handle("execute_action", (_e, index) => {
-  const slice = config.slices[index];
+  const profile = config.profiles[activeProfileIndex];
+  if (!profile) throw new Error("Invalid profile index");
+  const slice = profile.slices[index];
   if (!slice) throw new Error("Invalid slice index");
   executeAction(slice.action);
 });
@@ -261,7 +313,7 @@ app.whenReady().then(() => {
   createMainWindow();
   createRingWindow();
   setupTray();
-  registerShortcut(config.shortcut);
+  registerAllShortcuts();
 });
 
 app.on("window-all-closed", () => {

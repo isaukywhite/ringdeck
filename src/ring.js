@@ -24,8 +24,8 @@ function nodePosition(i, n) {
 }
 
 async function init() {
-  const config = await window.api.getConfig();
-  slices = config.slices;
+  const { profile } = await window.api.getActiveProfile();
+  slices = profile.slices;
   buildRing();
   setupInteraction();
   startParticles();
