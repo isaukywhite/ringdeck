@@ -360,6 +360,15 @@ ipcMain.handle("hide_ring", () => {
   if (ringWindow && !ringWindow.isDestroyed()) ringWindow.hide();
 });
 
+ipcMain.handle("get_file_icon", async (_e, filePath) => {
+  try {
+    const icon = await app.getFileIcon(filePath, { size: "large" });
+    return icon.toDataURL();
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle("open_file_dialog", async () => {
   const platform = process.platform;
   let defaultPath;

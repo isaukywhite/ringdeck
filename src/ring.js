@@ -113,7 +113,10 @@ function buildRing() {
     const stagger = 0.065;
     for (let i = 0; i < n; i++) {
       const p = nodePosition(i, n);
-      const icon = resolveIcon(slices[i].icon);
+      const s = slices[i];
+      const icon = s.customIcon
+        ? `<img src="${s.customIcon}" style="width:24px;height:24px;" />`
+        : resolveIcon(s.icon);
       const delay = (0.1 + stagger * i).toFixed(3);
 
       html += `

@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld("api", {
   executeAction: (index) => ipcRenderer.invoke("execute_action", index),
   hideRing: () => ipcRenderer.invoke("hide_ring"),
   openFileDialog: () => ipcRenderer.invoke("open_file_dialog"),
+  getFileIcon: (filePath) => ipcRenderer.invoke("get_file_icon", filePath),
 });

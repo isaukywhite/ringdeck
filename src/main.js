@@ -12,6 +12,13 @@ function activeProfile() {
   return config.profiles[activeProfileIndex] || config.profiles[0];
 }
 
+function sliceIcon(s, size = 20) {
+  if (s.customIcon) {
+    return `<img src="${s.customIcon}" style="width:${size}px;height:${size}px;" />`;
+  }
+  return resolveIcon(s.icon);
+}
+
 function appName(path) {
   if (!path) return "";
   const base = path.split(/[/\\]/).pop() || "";
@@ -122,7 +129,7 @@ function renderPreview() {
     const x = center + orbit * Math.cos(angle);
     const y = center + orbit * Math.sin(angle);
     const hl = i === expandedSlice ? " highlight" : "";
-    return `<div class="ring-preview-node${hl}" data-preview="${i}" style="left:${x}px;top:${y}px"><span class="preview-icon">${resolveIcon(s.icon)}</span></div>`;
+    return `<div class="ring-preview-node${hl}" data-preview="${i}" style="left:${x}px;top:${y}px"><span class="preview-icon">${sliceIcon(s, 16)}</span></div>`;
   }).join("");
 
   return `
@@ -147,7 +154,7 @@ function renderActionCard(s, i) {
       <div class="action-card-header" data-index="${i}" draggable="true">
         <span class="drag-handle" title="Drag to reorder">⠿</span>
         <span class="action-card-index">${i + 1}</span>
-        <span class="action-card-icon">${resolveIcon(s.icon)}</span>
+        <span class="action-card-icon">${sliceIcon(s, 22)}</span>
         <div class="action-card-info">
           <div class="action-card-name">${s.label || "Untitled"}</div>
           <div class="action-card-desc">${actionSummary(s.action)}</div>
@@ -450,6 +457,20 @@ function bindDetail(idx) {
         if (display) { display.textContent = name; display.classList.remove("empty"); }
         const desc = document.querySelector(`.action-card[data-card="${idx}"] .action-card-desc`);
         if (desc) desc.textContent = name;
+
+        // Auto-extract native icon from the executable
+        const iconDataUrl = await window.api.getFileIcon(selected);
+        if (iconDataUrl) {
+          s.customIcon = iconDataUrl;
+          // Update icon in all places
+          const imgHtml = `<img src="${iconDataUrl}" style="width:20px;height:20px;" />`;
+          const cardIcon = document.querySelector(`.action-card[data-card="${idx}"] .action-card-icon`);
+          if (cardIcon) cardIcon.innerHTML = imgHtml;
+          const iconEl = document.getElementById(`icon-btn-${idx}`);
+          if (iconEl) iconEl.innerHTML = imgHtml;
+          const previewNode = document.querySelector(`.ring-preview-node[data-preview="${idx}"] .preview-icon`);
+          if (previewNode) previewNode.innerHTML = imgHtml;
+        }
       }
     });
   }
@@ -532,7 +553,9 @@ function openIconPicker(idx) {
   closeIconPicker();
   pickerOpen = true;
 
-  const s = config.slices[idx];
+  const profile = activeProfile();
+  if (!profile) return;
+  const s = profile.slices[idx];
   const currentIcon = s.icon;
 
   const btn = document.getElementById(`icon-btn-${idx}`);
