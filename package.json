@@ -1,5 +1,6 @@
 {
   "name": "ringdeck",
+  "description": "A radial action launcher for power users",
   "private": true,
   "version": "0.1.0",
   "main": "electron/main.js",
