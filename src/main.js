@@ -14,8 +14,8 @@ function activeProfile() {
 
 function appName(path) {
   if (!path) return "";
-  const base = path.split("/").pop() || "";
-  return base.replace(/\.app$/i, "");
+  const base = path.split(/[/\\]/).pop() || "";
+  return base.replace(/\.(app|exe)$/i, "");
 }
 
 function actionSummary(action) {

@@ -16,35 +16,85 @@ const fs = require("fs");
 
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 
-const DEFAULT_CONFIG = {
-  profiles: [
-    {
-      id: "default",
-      name: "Default",
-      shortcut: "Alt+Space",
-      slices: [
-        {
-          label: "Terminal",
-          icon: "terminal",
-          action: {
-            type: "Program",
-            path: "/System/Applications/Utilities/Terminal.app",
-            args: [],
-          },
+function getDefaultConfig() {
+  const platform = process.platform;
+  let slices;
+
+  if (platform === "win32") {
+    slices = [
+      {
+        label: "Terminal",
+        icon: "terminal",
+        action: {
+          type: "Program",
+          path: "wt.exe",
+          args: [],
         },
-        {
-          label: "Browser",
-          icon: "globe",
-          action: {
-            type: "Program",
-            path: "/Applications/Safari.app",
-            args: [],
-          },
+      },
+      {
+        label: "Browser",
+        icon: "globe",
+        action: {
+          type: "Program",
+          path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          args: [],
         },
-      ],
-    },
-  ],
-};
+      },
+    ];
+  } else if (platform === "linux") {
+    slices = [
+      {
+        label: "Terminal",
+        icon: "terminal",
+        action: {
+          type: "Script",
+          command: "x-terminal-emulator",
+        },
+      },
+      {
+        label: "Browser",
+        icon: "globe",
+        action: {
+          type: "Script",
+          command: "xdg-open https://google.com",
+        },
+      },
+    ];
+  } else {
+    // macOS
+    slices = [
+      {
+        label: "Terminal",
+        icon: "terminal",
+        action: {
+          type: "Program",
+          path: "/System/Applications/Utilities/Terminal.app",
+          args: [],
+        },
+      },
+      {
+        label: "Browser",
+        icon: "globe",
+        action: {
+          type: "Program",
+          path: "/Applications/Safari.app",
+          args: [],
+        },
+      },
+    ];
+  }
+
+  return {
+    profiles: [
+      {
+        id: "default",
+        name: "Default",
+        shortcut: "Alt+Space",
+        slices,
+      },
+    ],
+  };
+}
 
 let config = loadConfig();
 let activeProfileIndex = 0;
@@ -75,8 +125,9 @@ function loadConfig() {
       return migrateConfig(raw);
     }
   } catch {}
-  saveConfigToDisk(DEFAULT_CONFIG);
-  return structuredClone(DEFAULT_CONFIG);
+  const defaults = getDefaultConfig();
+  saveConfigToDisk(defaults);
+  return structuredClone(defaults);
 }
 
 function saveConfigToDisk(cfg) {
@@ -86,27 +137,59 @@ function saveConfigToDisk(cfg) {
 
 // ─── Actions ───
 
-const { spawn } = require("child_process");
+const { spawn, exec } = require("child_process");
 
 function executeAction(action) {
+  const platform = process.platform;
+
   switch (action.type) {
-    case "Script":
-      spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
+    case "Script": {
+      if (platform === "win32") {
+        spawn("cmd", ["/c", action.command], { detached: true, stdio: "ignore", shell: false });
+      } else {
+        spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
+      }
       break;
-    case "Program":
-      if (action.path.endsWith(".app")) {
+    }
+    case "Program": {
+      if (platform === "darwin" && action.path.endsWith(".app")) {
+        // macOS: use 'open -a' for .app bundles
         const args = ["-a", action.path];
         if (action.args?.length) {
           args.push("--args", ...action.args);
         }
         spawn("open", args, { detached: true, stdio: "ignore" });
+      } else if (platform === "win32") {
+        // Windows: spawn the executable directly
+        const programPath = action.path;
+        const programArgs = action.args || [];
+        spawn(programPath, programArgs, {
+          detached: true,
+          stdio: "ignore",
+          shell: true,
+        });
+      } else if (platform === "linux") {
+        // Linux: use xdg-open for .desktop or direct spawn for binaries
+        if (action.path.endsWith(".desktop")) {
+          spawn("gtk-launch", [path.basename(action.path, ".desktop")], {
+            detached: true,
+            stdio: "ignore",
+          });
+        } else {
+          spawn(action.path, action.args || [], {
+            detached: true,
+            stdio: "ignore",
+          });
+        }
       } else {
+        // Fallback: try spawning directly
         spawn(action.path, action.args || [], {
           detached: true,
           stdio: "ignore",
         });
       }
       break;
+    }
     case "System":
       console.log("System action not yet implemented:", action.action);
       break;
@@ -290,10 +373,28 @@ ipcMain.handle("hide_ring", () => {
 });
 
 ipcMain.handle("open_file_dialog", async () => {
+  const platform = process.platform;
+  let defaultPath;
+  let filters;
+
+  if (platform === "darwin") {
+    defaultPath = "/Applications";
+    filters = [{ name: "Applications", extensions: ["app"] }];
+  } else if (platform === "win32") {
+    defaultPath = "C:\\Program Files";
+    filters = [
+      { name: "Executables", extensions: ["exe", "cmd", "bat", "lnk"] },
+      { name: "All Files", extensions: ["*"] },
+    ];
+  } else {
+    defaultPath = "/usr/bin";
+    filters = [{ name: "All Files", extensions: ["*"] }];
+  }
+
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
-    defaultPath: "/Applications",
-    filters: [{ name: "Applications", extensions: ["app"] }],
+    defaultPath,
+    filters,
   });
   if (result.canceled || !result.filePaths.length) return null;
   return result.filePaths[0];

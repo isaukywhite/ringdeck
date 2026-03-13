@@ -21,6 +21,14 @@
       "target": "dmg",
       "icon": "build/icon.icns"
     },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    },
     "files": [
       "dist/**/*",
       "electron/**/*"
