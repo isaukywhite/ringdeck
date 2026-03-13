@@ -5,8 +5,8 @@ const RING_SIZE = 400;
 const CENTER = RING_SIZE / 2;
 const NODE_ORBIT = 95;
 const ARC_RADIUS = 135;
-const SUB_ORBIT = 60;
-const SUB_NODE_SIZE = 30;
+const SUB_ORBIT = 90;
+const SUB_NODE_SIZE = 46;
 
 function arcSpread(n) {
   if (n <= 1) return Math.PI / 3;
