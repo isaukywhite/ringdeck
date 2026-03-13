@@ -176,6 +176,9 @@ function executeAction(action) {
     case "System":
       console.log("System action not yet implemented:", action.action);
       break;
+    case "Submenu":
+      // Submenu navigation is handled by the ring renderer, not here
+      break;
   }
 }
 
@@ -367,6 +370,16 @@ ipcMain.handle("get_file_icon", async (_e, filePath) => {
   } catch {
     return null;
   }
+});
+
+ipcMain.handle("execute_submenu_action", (_e, parentIndex, childIndex) => {
+  const profile = config.profiles[activeProfileIndex];
+  if (!profile) throw new Error("Invalid profile index");
+  const parentSlice = profile.slices[parentIndex];
+  if (!parentSlice || parentSlice.action.type !== "Submenu") throw new Error("Invalid parent slice");
+  const childSlice = parentSlice.action.slices[childIndex];
+  if (!childSlice) throw new Error("Invalid child slice index");
+  executeAction(childSlice.action);
 });
 
 ipcMain.handle("open_file_dialog", async () => {

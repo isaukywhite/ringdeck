@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld("api", {
   hideRing: () => ipcRenderer.invoke("hide_ring"),
   openFileDialog: () => ipcRenderer.invoke("open_file_dialog"),
   getFileIcon: (filePath) => ipcRenderer.invoke("get_file_icon", filePath),
+  executeSubmenuAction: (parentIndex, childIndex) => ipcRenderer.invoke("execute_submenu_action", parentIndex, childIndex),
 });
