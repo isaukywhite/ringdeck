@@ -250,6 +250,11 @@ function createRingWindow() {
 }
 
 function showRingAtCursor(profileIndex) {
+  // Guard: ignore repeated shortcut triggers (key repeat) if ring is already visible
+  if (ringWindow && !ringWindow.isDestroyed() && ringWindow.isVisible()) {
+    return;
+  }
+
   activeProfileIndex = profileIndex;
   if (!ringWindow || ringWindow.isDestroyed()) {
     createRingWindow();
