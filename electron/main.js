@@ -137,18 +137,22 @@ function saveConfigToDisk(cfg) {
 
 // ─── Actions ───
 
-const { spawn, exec } = require("child_process");
+const { spawn } = require("child_process");
+const { shell } = require("electron");
 
 function executeAction(action) {
   const platform = process.platform;
 
   switch (action.type) {
     case "Script": {
+      let child;
       if (platform === "win32") {
-        spawn("cmd", ["/c", action.command], { detached: true, stdio: "ignore", shell: false });
+        child = spawn("cmd", ["/c", action.command], { detached: true, stdio: "ignore", shell: false });
       } else {
-        spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
+        child = spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
       }
+      child.on("error", (err) => console.error("Script spawn error:", err));
+      child.unref();
       break;
     }
     case "Program": {
@@ -158,34 +162,13 @@ function executeAction(action) {
         if (action.args?.length) {
           args.push("--args", ...action.args);
         }
-        spawn("open", args, { detached: true, stdio: "ignore" });
-      } else if (platform === "win32") {
-        // Windows: spawn the executable directly
-        const programPath = action.path;
-        const programArgs = action.args || [];
-        spawn(programPath, programArgs, {
-          detached: true,
-          stdio: "ignore",
-          shell: true,
-        });
-      } else if (platform === "linux") {
-        // Linux: use xdg-open for .desktop or direct spawn for binaries
-        if (action.path.endsWith(".desktop")) {
-          spawn("gtk-launch", [path.basename(action.path, ".desktop")], {
-            detached: true,
-            stdio: "ignore",
-          });
-        } else {
-          spawn(action.path, action.args || [], {
-            detached: true,
-            stdio: "ignore",
-          });
-        }
+        const child = spawn("open", args, { detached: true, stdio: "ignore" });
+        child.on("error", (err) => console.error("Program spawn error:", err));
+        child.unref();
       } else {
-        // Fallback: try spawning directly
-        spawn(action.path, action.args || [], {
-          detached: true,
-          stdio: "ignore",
+        // Windows & Linux: use Electron shell.openPath (native, reliable)
+        shell.openPath(action.path).then((err) => {
+          if (err) console.error("shell.openPath error:", err);
         });
       }
       break;
