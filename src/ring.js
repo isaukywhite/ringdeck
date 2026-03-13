@@ -339,8 +339,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(async () => {
     if (!document.hidden && wasHidden) {
       wasHidden = false;
-      const config = await window.api.getConfig();
-      slices = config.slices;
+      const { profile } = await window.api.getActiveProfile();
+      slices = profile.slices;
       hoveredIndex = -1;
       buildRing();
       ring.classList.remove("appear");
