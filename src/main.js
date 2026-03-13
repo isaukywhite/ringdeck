@@ -590,6 +590,7 @@ function bindDetail(idx) {
         s.action = { type: "Program", path: "", args: [] };
       } else if (e.target.value === "Submenu") {
         s.action = { type: "Submenu", slices: [] };
+        s.icon = "squares-2x2";
       }
       render();
     });
