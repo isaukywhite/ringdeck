@@ -3,3 +3,8 @@ node_modules
 dist
 build
 out
+
+# Council Lumina (internal - do NOT push)
+.agent/
+.agent-context-mm/
+temp-old/

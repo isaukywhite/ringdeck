@@ -24,8 +24,8 @@ function nodePosition(i, n) {
 }
 
 async function init() {
-  const config = await window.api.getConfig();
-  slices = config.slices;
+  const { profile } = await window.api.getActiveProfile();
+  slices = profile.slices;
   buildRing();
   setupInteraction();
   startParticles();
@@ -113,7 +113,10 @@ function buildRing() {
     const stagger = 0.065;
     for (let i = 0; i < n; i++) {
       const p = nodePosition(i, n);
-      const icon = resolveIcon(slices[i].icon);
+      const s = slices[i];
+      const icon = s.customIcon
+        ? `<img src="${s.customIcon}" style="width:24px;height:24px;" />`
+        : resolveIcon(s.icon);
       const delay = (0.1 + stagger * i).toFixed(3);
 
       html += `
@@ -318,10 +321,52 @@ function setupInteraction() {
 
   container.addEventListener("mouseleave", () => updateHover(-1));
 
+  // Click (mouseup) still works as fallback
   container.addEventListener("mouseup", async () => {
     if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
       try { await window.api.executeAction(hoveredIndex); }
       catch (e) { console.error("Action failed:", e); }
+    }
+    hoveredIndex = -1;
+    await window.api.hideRing();
+  });
+
+  // Release-to-activate: when modifier keys are released, trigger hovered action
+  let ringShowTime = 0;
+
+  // Track when ring becomes visible
+  const observer = new MutationObserver(() => {
+    if (!document.hidden) {
+      ringShowTime = Date.now();
+    }
+  });
+  observer.observe(document, { attributes: true, attributeFilter: ["visibilityState"] });
+
+  // Also set on DOMContentLoaded / visibility
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      ringShowTime = Date.now();
+    }
+  });
+
+  document.addEventListener("keyup", async (e) => {
+    // Ignore if ring just appeared (debounce 200ms to avoid premature activation)
+    if (Date.now() - ringShowTime < 200) return;
+
+    // Only activate when a MODIFIER key (Ctrl/Alt/Shift/Meta) is released
+    // and NO other modifiers remain held.
+    // Normal keys (Space, letters, etc.) are ignored — they just open the ring,
+    // the user holds the modifier to keep it open, then releases modifier to activate.
+    const isModifierKey = ["Control", "Alt", "Shift", "Meta"].includes(e.key);
+    if (!isModifierKey) return;
+
+    const hasModifiers = e.ctrlKey || e.altKey || e.shiftKey || e.metaKey;
+    if (hasModifiers) return; // Still holding other modifiers
+
+    // All modifiers released → activate hovered action
+    if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
+      try { await window.api.executeAction(hoveredIndex); }
+      catch (err) { console.error("Action failed:", err); }
     }
     hoveredIndex = -1;
     await window.api.hideRing();
@@ -339,8 +384,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(async () => {
     if (!document.hidden && wasHidden) {
       wasHidden = false;
-      const config = await window.api.getConfig();
-      slices = config.slices;
+      const { profile } = await window.api.getActiveProfile();
+      slices = profile.slices;
       hoveredIndex = -1;
       buildRing();
       ring.classList.remove("appear");

@@ -16,40 +16,118 @@ const fs = require("fs");
 
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 
-const DEFAULT_CONFIG = {
-  shortcut: "Alt+Space",
-  slices: [
-    {
-      label: "Terminal",
-      icon: "terminal",
-      action: {
-        type: "Program",
-        path: "/System/Applications/Utilities/Terminal.app",
-        args: [],
+function getDefaultConfig() {
+  const platform = process.platform;
+  let slices;
+
+  if (platform === "win32") {
+    slices = [
+      {
+        label: "Terminal",
+        icon: "terminal",
+        action: {
+          type: "Program",
+          path: "wt.exe",
+          args: [],
+        },
       },
-    },
-    {
-      label: "Browser",
-      icon: "globe",
-      action: {
-        type: "Program",
-        path: "/Applications/Safari.app",
-        args: [],
+      {
+        label: "Browser",
+        icon: "globe",
+        action: {
+          type: "Program",
+          path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          args: [],
+        },
       },
-    },
-  ],
-};
+    ];
+  } else if (platform === "linux") {
+    slices = [
+      {
+        label: "Terminal",
+        icon: "terminal",
+        action: {
+          type: "Script",
+          command: "x-terminal-emulator",
+        },
+      },
+      {
+        label: "Browser",
+        icon: "globe",
+        action: {
+          type: "Script",
+          command: "xdg-open https://google.com",
+        },
+      },
+    ];
+  } else {
+    // macOS
+    slices = [
+      {
+        label: "Terminal",
+        icon: "terminal",
+        action: {
+          type: "Program",
+          path: "/System/Applications/Utilities/Terminal.app",
+          args: [],
+        },
+      },
+      {
+        label: "Browser",
+        icon: "globe",
+        action: {
+          type: "Program",
+          path: "/Applications/Safari.app",
+          args: [],
+        },
+      },
+    ];
+  }
+
+  return {
+    profiles: [
+      {
+        id: "default",
+        name: "Default",
+        shortcut: "Alt+Space",
+        slices,
+      },
+    ],
+  };
+}
 
 let config = loadConfig();
+let activeProfileIndex = 0;
+
+function migrateConfig(cfg) {
+  // Migrate legacy format (shortcut + slices) to profiles format
+  if (cfg.slices && !cfg.profiles) {
+    const migrated = {
+      profiles: [
+        {
+          id: "default",
+          name: "Default",
+          shortcut: cfg.shortcut || "Alt+Space",
+          slices: cfg.slices,
+        },
+      ],
+    };
+    saveConfigToDisk(migrated);
+    return migrated;
+  }
+  return cfg;
+}
 
 function loadConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      return migrateConfig(raw);
     }
   } catch {}
-  saveConfigToDisk(DEFAULT_CONFIG);
-  return structuredClone(DEFAULT_CONFIG);
+  const defaults = getDefaultConfig();
+  saveConfigToDisk(defaults);
+  return structuredClone(defaults);
 }
 
 function saveConfigToDisk(cfg) {
@@ -60,26 +138,41 @@ function saveConfigToDisk(cfg) {
 // ─── Actions ───
 
 const { spawn } = require("child_process");
+const { shell } = require("electron");
 
 function executeAction(action) {
+  const platform = process.platform;
+
   switch (action.type) {
-    case "Script":
-      spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
+    case "Script": {
+      let child;
+      if (platform === "win32") {
+        child = spawn("cmd", ["/c", action.command], { detached: true, stdio: "ignore", shell: false });
+      } else {
+        child = spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
+      }
+      child.on("error", (err) => console.error("Script spawn error:", err));
+      child.unref();
       break;
-    case "Program":
-      if (action.path.endsWith(".app")) {
+    }
+    case "Program": {
+      if (platform === "darwin" && action.path.endsWith(".app")) {
+        // macOS: use 'open -a' for .app bundles
         const args = ["-a", action.path];
         if (action.args?.length) {
           args.push("--args", ...action.args);
         }
-        spawn("open", args, { detached: true, stdio: "ignore" });
+        const child = spawn("open", args, { detached: true, stdio: "ignore" });
+        child.on("error", (err) => console.error("Program spawn error:", err));
+        child.unref();
       } else {
-        spawn(action.path, action.args || [], {
-          detached: true,
-          stdio: "ignore",
+        // Windows & Linux: use Electron shell.openPath (native, reliable)
+        shell.openPath(action.path).then((err) => {
+          if (err) console.error("shell.openPath error:", err);
         });
       }
       break;
+    }
     case "System":
       console.log("System action not yet implemented:", action.action);
       break;
@@ -139,7 +232,13 @@ function createRingWindow() {
   });
 }
 
-function showRingAtCursor() {
+function showRingAtCursor(profileIndex) {
+  // Guard: ignore repeated shortcut triggers (key repeat) if ring is already visible
+  if (ringWindow && !ringWindow.isDestroyed() && ringWindow.isVisible()) {
+    return;
+  }
+
+  activeProfileIndex = profileIndex;
   if (!ringWindow || ringWindow.isDestroyed()) {
     createRingWindow();
   }
@@ -147,28 +246,46 @@ function showRingAtCursor() {
   const x = Math.round(cursor.x - 200);
   const y = Math.round(cursor.y - 200);
   ringWindow.setBounds({ x, y, width: 400, height: 400 });
+
+  // Send active profile slices to the ring window
+  const profile = config.profiles[profileIndex];
+  if (profile) {
+    const json = JSON.stringify(profile.slices);
+    ringWindow.webContents.executeJavaScript(
+      `window.__updateSlices(${json})`
+    );
+  }
+
   ringWindow.show();
   ringWindow.focus();
 }
 
 // ─── Global Shortcut ───
 
-let currentShortcut = null;
+let registeredShortcuts = [];
 
-function registerShortcut(accelerator) {
-  if (currentShortcut) {
-    globalShortcut.unregister(currentShortcut);
-    currentShortcut = null;
+function registerAllShortcuts() {
+  // Unregister all previous shortcuts
+  for (const s of registeredShortcuts) {
+    try { globalShortcut.unregister(s); } catch {}
   }
+  registeredShortcuts = [];
 
-  // Map Super to Meta for Electron
-  const mapped = accelerator.replace(/Super/g, "Meta");
+  // Register one shortcut per profile
+  for (let i = 0; i < config.profiles.length; i++) {
+    const profile = config.profiles[i];
+    if (!profile.shortcut) continue;
 
-  try {
-    globalShortcut.register(mapped, showRingAtCursor);
-    currentShortcut = mapped;
-  } catch (e) {
-    console.error("Failed to register shortcut:", mapped, e);
+    // Map Super to Meta for Electron
+    const mapped = profile.shortcut.replace(/Super/g, "Meta");
+    const idx = i; // capture for closure
+
+    try {
+      globalShortcut.register(mapped, () => showRingAtCursor(idx));
+      registeredShortcuts.push(mapped);
+    } catch (e) {
+      console.error(`Failed to register shortcut for profile "${profile.name}":`, mapped, e);
+    }
   }
 }
 
@@ -208,27 +325,33 @@ function setupTray() {
 
 ipcMain.handle("get_config", () => config);
 
+ipcMain.handle("get_active_profile", () => {
+  return {
+    profileIndex: activeProfileIndex,
+    profile: config.profiles[activeProfileIndex] || config.profiles[0],
+  };
+});
+
 ipcMain.handle("save_config", (_e, newConfig) => {
-  const oldShortcut = config.shortcut;
   saveConfigToDisk(newConfig);
+  config = newConfig;
 
-  if (oldShortcut !== newConfig.shortcut) {
-    registerShortcut(newConfig.shortcut);
-  }
+  // Re-register all shortcuts (any could have changed)
+  registerAllShortcuts();
 
-  // Update ring window live
-  if (ringWindow) {
-    const json = JSON.stringify(newConfig.slices);
+  // Update ring window live with active profile
+  if (ringWindow && config.profiles[activeProfileIndex]) {
+    const json = JSON.stringify(config.profiles[activeProfileIndex].slices);
     ringWindow.webContents.executeJavaScript(
       `window.__updateSlices(${json})`
     );
   }
-
-  config = newConfig;
 });
 
 ipcMain.handle("execute_action", (_e, index) => {
-  const slice = config.slices[index];
+  const profile = config.profiles[activeProfileIndex];
+  if (!profile) throw new Error("Invalid profile index");
+  const slice = profile.slices[index];
   if (!slice) throw new Error("Invalid slice index");
   executeAction(slice.action);
 });
@@ -237,11 +360,38 @@ ipcMain.handle("hide_ring", () => {
   if (ringWindow && !ringWindow.isDestroyed()) ringWindow.hide();
 });
 
+ipcMain.handle("get_file_icon", async (_e, filePath) => {
+  try {
+    const icon = await app.getFileIcon(filePath, { size: "large" });
+    return icon.toDataURL();
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle("open_file_dialog", async () => {
+  const platform = process.platform;
+  let defaultPath;
+  let filters;
+
+  if (platform === "darwin") {
+    defaultPath = "/Applications";
+    filters = [{ name: "Applications", extensions: ["app"] }];
+  } else if (platform === "win32") {
+    defaultPath = "C:\\Program Files";
+    filters = [
+      { name: "Executables", extensions: ["exe", "cmd", "bat", "lnk"] },
+      { name: "All Files", extensions: ["*"] },
+    ];
+  } else {
+    defaultPath = "/usr/bin";
+    filters = [{ name: "All Files", extensions: ["*"] }];
+  }
+
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
-    defaultPath: "/Applications",
-    filters: [{ name: "Applications", extensions: ["app"] }],
+    defaultPath,
+    filters,
   });
   if (result.canceled || !result.filePaths.length) return null;
   return result.filePaths[0];
@@ -261,7 +411,7 @@ app.whenReady().then(() => {
   createMainWindow();
   createRingWindow();
   setupTray();
-  registerShortcut(config.shortcut);
+  registerAllShortcuts();
 });
 
 app.on("window-all-closed", () => {
