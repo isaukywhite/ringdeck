@@ -1,8 +1,9 @@
 {
   "name": "ringdeck",
   "description": "A radial action launcher for power users",
+  "author": "isaukywhite",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite build && electron .",
@@ -27,7 +28,7 @@
       "icon": "build/icon.ico"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": ["AppImage", "tar.gz"],
       "category": "Utility"
     },
     "files": [
