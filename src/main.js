@@ -403,6 +403,7 @@ function render() {
             <span class="shortcut-keys" id="shortcut-display">${profile.shortcut || "Not set"}</span>
             <span class="shortcut-action" id="shortcut-action">Record</span>
           </div>
+          ${profile.shortcut ? `<button class="btn-clear-shortcut" id="clear-shortcut-btn">Clear shortcut</button>` : ''}
         </div>
       </div>
 
@@ -446,6 +447,19 @@ function render() {
 
 function bindEvents() {
   document.getElementById("shortcut-box").addEventListener("click", startRecording);
+
+  // Clear shortcut button
+  const clearShortcutBtn = document.getElementById("clear-shortcut-btn");
+  if (clearShortcutBtn) {
+    clearShortcutBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const profile = activeProfile();
+      if (profile) {
+        profile.shortcut = "";
+        render();
+      }
+    });
+  }
   document.getElementById("add-btn").addEventListener("click", addSlice);
   document.getElementById("save-btn").addEventListener("click", saveConfig);
 

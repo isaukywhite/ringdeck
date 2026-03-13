@@ -234,6 +234,24 @@ body {
   flex-shrink: 0;
 }
 
+.btn-clear-shortcut {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+  opacity: 0.6;
+  transition: opacity 0.12s;
+  text-align: left;
+}
+
+.btn-clear-shortcut:hover {
+  opacity: 1;
+}
+
 /* ─── Right pane: action list ─── */
 
 .right-pane {
