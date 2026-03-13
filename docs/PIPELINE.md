@@ -53,9 +53,9 @@
 │                                                                      │
 │   Cada runner:                                                       │
 │   ├── checkout                                                       │
-│   ├── setup-node 20 + cache npm                                     │
-│   ├── npm ci                                                         │
-│   ├── npx electron-builder $build_args                               │
+│   ├── setup-bun (oven-sh/setup-bun@v2)                               │
+│   ├── bun install --frozen-lockfile                                  │
+│   ├── bunx electron-builder $build_args                              │
 │   └── upload-artifact (out/*.dmg, *.exe, *.AppImage, *.deb)         │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -238,9 +238,9 @@ Proposito: Compilar o app para as 3 plataformas
 
 Steps:
 ├── actions/checkout@v4
-├── actions/setup-node@v4 (node 20, cache npm)
-├── npm ci (instalacao limpa, sem cache local)
-├── npx electron-builder $build_args
+├── oven-sh/setup-bun@v2 (instala bun)
+├── bun install --frozen-lockfile (instalacao limpa via lockfile)
+├── bunx electron-builder $build_args
 │   ├── macOS:   --mac  → gera .dmg
 │   ├── Linux:   --linux → gera .AppImage + .deb
 │   └── Windows: --win  → gera .exe (NSIS installer + portable)
@@ -468,14 +468,14 @@ Correcao:  Verificar directories.output no package.json (deve ser "out")
 Prevencao: if-no-files-found: warn no upload-artifact (gera warning no log)
 ```
 
-### Erro 5 — npm ci Falha
+### Erro 5 — bun install Falha
 
 ```
 Sintoma:   Build falha na etapa de install
-Causa:     package-lock.json desatualizado ou ausente
+Causa:     bun.lock desatualizado ou ausente
 Impacto:   Nenhum build roda
-Correcao:  Rodar npm install localmente e commitar package-lock.json
-Prevencao: Sempre commitar package-lock.json junto com mudancas no package.json
+Correcao:  Rodar bun install localmente e commitar bun.lock
+Prevencao: Sempre commitar bun.lock junto com mudancas no package.json
 ```
 
 ---
@@ -567,7 +567,7 @@ GH_TOKEN             → passado como env var para electron-builder
 
 ### O que NAO faz
 
-- NAO publica no npm
+- NAO publica em registros de pacotes
 - NAO faz deploy em servidor
 - NAO envia notificacoes
 - NAO modifica protecao de branches
@@ -591,7 +591,7 @@ GH_TOKEN             → passado como env var para electron-builder
 | **NSIS** | Nullsoft Scriptable Install System — formato de installer pra Windows |
 | **AppImage** | Formato de distribuicao de apps Linux (executavel, sem install) |
 | **DMG** | Disk Image — formato padrao de distribuicao de apps macOS |
-| **npm ci** | Instalacao limpa de dependencias baseada no package-lock.json |
+| **bun install --frozen-lockfile** | Instalacao limpa de dependencias baseada no bun.lock |
 | **fetch-depth: 0** | Clona todo o historico git (necessario para ler tags) |
 | **should_release** | Flag booleana que controla se o pipeline continua ou para |
 | **merge-multiple** | Opcao do download-artifact que junta todos os artifacts numa pasta |
@@ -611,7 +611,7 @@ Pacotes do projeto:
 
 GitHub Actions usadas:
 ├── actions/checkout@v4         → clonar repositorio
-├── actions/setup-node@v4       → instalar Node.js
+├── oven-sh/setup-bun@v2        → instalar Bun
 ├── actions/upload-artifact@v4  → salvar binarios entre jobs
 ├── actions/download-artifact@v4 → recuperar binarios
 └── softprops/action-gh-release@v2 → criar GitHub Release
