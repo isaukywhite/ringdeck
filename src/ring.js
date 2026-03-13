@@ -318,6 +318,7 @@ function setupInteraction() {
 
   container.addEventListener("mouseleave", () => updateHover(-1));
 
+  // Click (mouseup) still works as fallback
   container.addEventListener("mouseup", async () => {
     if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
       try { await window.api.executeAction(hoveredIndex); }
@@ -325,6 +326,47 @@ function setupInteraction() {
     }
     hoveredIndex = -1;
     await window.api.hideRing();
+  });
+
+  // Release-to-activate: when modifier keys are released, trigger hovered action
+  let ringShowTime = 0;
+
+  // Track when ring becomes visible
+  const observer = new MutationObserver(() => {
+    if (!document.hidden) {
+      ringShowTime = Date.now();
+    }
+  });
+  observer.observe(document, { attributes: true, attributeFilter: ["visibilityState"] });
+
+  // Also set on DOMContentLoaded / visibility
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      ringShowTime = Date.now();
+    }
+  });
+
+  document.addEventListener("keyup", async (e) => {
+    // Ignore if ring just appeared (debounce 150ms to avoid premature activation)
+    if (Date.now() - ringShowTime < 150) return;
+
+    // Activate when any key from the shortcut combo is released.
+    // Two scenarios:
+    // 1. Non-modifier key released (e.g. Space in Alt+Space) → activate immediately
+    // 2. Last modifier released (e.g. Alt released, nothing else held) → activate
+    const isModifierKey = ["Control", "Alt", "Shift", "Meta"].includes(e.key);
+    const hasModifiers = e.ctrlKey || e.altKey || e.shiftKey || e.metaKey;
+
+    const shouldActivate = isModifierKey ? !hasModifiers : true;
+
+    if (shouldActivate) {
+      if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
+        try { await window.api.executeAction(hoveredIndex); }
+        catch (err) { console.error("Action failed:", err); }
+      }
+      hoveredIndex = -1;
+      await window.api.hideRing();
+    }
   });
 
   document.addEventListener("keydown", async (e) => {
