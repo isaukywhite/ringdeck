@@ -2,7 +2,7 @@
   "name": "ringdeck",
   "description": "A radial action launcher for power users",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite build && electron .",
