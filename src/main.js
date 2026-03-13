@@ -28,6 +28,10 @@ function appName(path) {
 function actionSummary(action) {
   if (action.type === "Script") return action.command || "No command";
   if (action.type === "Program") return appName(action.path) || "No program";
+  if (action.type === "Submenu") {
+    const count = (action.slices || []).length;
+    return `${count} sub-action${count !== 1 ? "s" : ""}`;
+  }
   return "";
 }
 
@@ -145,6 +149,134 @@ function renderPreview() {
     </div>`;
 }
 
+// ─── Sub-action helpers (for Submenu type) ───
+
+function renderSubActions(subSlices, parentIdx) {
+  if (!subSlices || subSlices.length === 0) {
+    return `<div class="sub-action-empty">No sub-actions yet. Click "+ Add" above.</div>`;
+  }
+  return subSlices.map((sub, j) => {
+    const icon = sub.customIcon
+      ? `<img src="${sub.customIcon}" style="width:16px;height:16px;" />`
+      : resolveIcon(sub.icon);
+    const desc = sub.action.type === "Script"
+      ? (sub.action.command || "No command")
+      : appName(sub.action.path) || "No program";
+    return `
+      <div class="sub-action-card" data-parent="${parentIdx}" data-sub="${j}">
+        <span class="sub-action-icon">${icon}</span>
+        <div class="sub-action-info">
+          <input type="text" class="sub-action-label" id="sub-label-${parentIdx}-${j}"
+            value="${escAttr(sub.label)}" placeholder="Sub-action name" />
+          <span class="sub-action-desc">${desc}</span>
+        </div>
+        <select class="sub-action-type" id="sub-type-${parentIdx}-${j}">
+          <option value="Script"${sub.action.type === "Script" ? " selected" : ""}>Script</option>
+          <option value="Program"${sub.action.type === "Program" ? " selected" : ""}>Program</option>
+        </select>
+        ${sub.action.type === "Script" ? `
+          <input type="text" class="sub-action-cmd" id="sub-cmd-${parentIdx}-${j}"
+            value="${escAttr(sub.action.command || "")}" placeholder="Command" />
+        ` : `
+          <div class="sub-action-program">
+            <span class="sub-action-path${sub.action.path ? "" : " empty"}" id="sub-path-${parentIdx}-${j}">
+              ${sub.action.path ? appName(sub.action.path) : "Choose..."}
+            </span>
+            <button class="btn-browse-sub" id="sub-browse-${parentIdx}-${j}">Browse</button>
+          </div>
+        `}
+        <button class="btn-delete-sub" id="sub-del-${parentIdx}-${j}" title="Remove">×</button>
+      </div>`;
+  }).join("");
+}
+
+function bindSubActionEvents(parentIdx, parentSlice) {
+  const subSlices = parentSlice.action.slices || [];
+
+  // Add sub-action button
+  const addBtn = document.getElementById(`add-sub-${parentIdx}`);
+  if (addBtn) {
+    addBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!parentSlice.action.slices) parentSlice.action.slices = [];
+      parentSlice.action.slices.push({
+        label: "",
+        icon: "cog-6-tooth",
+        action: { type: "Script", command: "" },
+      });
+      render();
+    });
+  }
+
+  // Bind each sub-action
+  for (let j = 0; j < subSlices.length; j++) {
+    const sub = subSlices[j];
+
+    // Label
+    const labelEl = document.getElementById(`sub-label-${parentIdx}-${j}`);
+    if (labelEl) {
+      labelEl.addEventListener("input", (e) => { sub.label = e.target.value; });
+      labelEl.addEventListener("click", (e) => e.stopPropagation());
+    }
+
+    // Type select
+    const typeEl = document.getElementById(`sub-type-${parentIdx}-${j}`);
+    if (typeEl) {
+      typeEl.addEventListener("click", (e) => e.stopPropagation());
+      typeEl.addEventListener("change", (e) => {
+        if (e.target.value === "Script") {
+          sub.action = { type: "Script", command: "" };
+        } else {
+          sub.action = { type: "Program", path: "", args: [] };
+        }
+        render();
+      });
+    }
+
+    // Command input (Script)
+    const cmdEl = document.getElementById(`sub-cmd-${parentIdx}-${j}`);
+    if (cmdEl) {
+      cmdEl.addEventListener("click", (e) => e.stopPropagation());
+      cmdEl.addEventListener("input", (e) => {
+        sub.action.command = e.target.value;
+      });
+    }
+
+    // Browse button (Program)
+    const browseEl = document.getElementById(`sub-browse-${parentIdx}-${j}`);
+    if (browseEl) {
+      browseEl.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const selected = await window.api.openFileDialog();
+        if (selected) {
+          sub.action.path = selected;
+          const pathEl = document.getElementById(`sub-path-${parentIdx}-${j}`);
+          if (pathEl) {
+            pathEl.textContent = appName(selected);
+            pathEl.classList.remove("empty");
+          }
+          // Auto-extract icon
+          const iconDataUrl = await window.api.getFileIcon(selected);
+          if (iconDataUrl) {
+            sub.customIcon = iconDataUrl;
+          }
+          render();
+        }
+      });
+    }
+
+    // Delete sub-action
+    const delEl = document.getElementById(`sub-del-${parentIdx}-${j}`);
+    if (delEl) {
+      delEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        parentSlice.action.slices.splice(j, 1);
+        render();
+      });
+    }
+  }
+}
+
 // ─── Action cards ───
 
 function renderActionCard(s, i) {
@@ -183,6 +315,7 @@ function renderActionCard(s, i) {
             <select id="type-${i}">
               <option value="Script"${at === "Script" ? " selected" : ""}>Script</option>
               <option value="Program"${at === "Program" ? " selected" : ""}>Program</option>
+              <option value="Submenu"${at === "Submenu" ? " selected" : ""}>Submenu</option>
             </select>
           </div>
 
@@ -191,7 +324,7 @@ function renderActionCard(s, i) {
             <div>
               <input type="text" id="cmd-${i}" value="${escAttr(s.action.command || "")}" placeholder="e.g. open -a Safari" />
             </div>
-          ` : `
+          ` : at === "Program" ? `
             <span class="detail-label">Program</span>
             <div>
               <div class="file-picker">
@@ -203,8 +336,19 @@ function renderActionCard(s, i) {
             <div>
               <input type="text" id="args-${i}" value="${escAttr(programArgs)}" placeholder="Optional arguments" />
             </div>
-          `}
+          ` : ``}
         </div>
+        ${at === "Submenu" ? `
+          <div class="sub-action-section" id="sub-section-${i}">
+            <div class="sub-action-header">
+              <span class="sub-action-title">Sub-Actions</span>
+              <button class="btn-add-sub" id="add-sub-${i}">+ Add</button>
+            </div>
+            <div class="sub-action-list" id="sub-list-${i}">
+              ${renderSubActions(s.action.slices || [], i)}
+            </div>
+          </div>
+        ` : ``}
         <div class="detail-actions">
           <button class="btn-delete" id="delete-${i}">Remove</button>
         </div>
@@ -259,6 +403,7 @@ function render() {
             <span class="shortcut-keys" id="shortcut-display">${profile.shortcut || "Not set"}</span>
             <span class="shortcut-action" id="shortcut-action">Record</span>
           </div>
+          ${profile.shortcut ? `<button class="btn-clear-shortcut" id="clear-shortcut-btn">Clear shortcut</button>` : ''}
         </div>
       </div>
 
@@ -302,6 +447,19 @@ function render() {
 
 function bindEvents() {
   document.getElementById("shortcut-box").addEventListener("click", startRecording);
+
+  // Clear shortcut button
+  const clearShortcutBtn = document.getElementById("clear-shortcut-btn");
+  if (clearShortcutBtn) {
+    clearShortcutBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const profile = activeProfile();
+      if (profile) {
+        profile.shortcut = "";
+        render();
+      }
+    });
+  }
   document.getElementById("add-btn").addEventListener("click", addSlice);
   document.getElementById("save-btn").addEventListener("click", saveConfig);
 
@@ -428,8 +586,10 @@ function bindDetail(idx) {
     typeSelect.addEventListener("change", (e) => {
       if (e.target.value === "Script") {
         s.action = { type: "Script", command: "" };
-      } else {
+      } else if (e.target.value === "Program") {
         s.action = { type: "Program", path: "", args: [] };
+      } else if (e.target.value === "Submenu") {
+        s.action = { type: "Submenu", slices: [] };
       }
       render();
     });
@@ -495,10 +655,16 @@ function bindDetail(idx) {
   if (deleteBtn) {
     deleteBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      config.slices.splice(idx, 1);
+      const profile = activeProfile();
+      if (profile) profile.slices.splice(idx, 1);
       expandedSlice = -1;
       render();
     });
+  }
+
+  // Submenu sub-actions
+  if (s.action.type === "Submenu") {
+    bindSubActionEvents(idx, s);
   }
 
   const detail = document.querySelector(`.action-detail[data-detail="${idx}"]`);

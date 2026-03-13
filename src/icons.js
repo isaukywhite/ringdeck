@@ -80,6 +80,9 @@ import wrench from 'heroicons/24/outline/wrench.svg?raw';
 import serverStack from 'heroicons/24/outline/server-stack.svg?raw';
 import variable from 'heroicons/24/outline/variable.svg?raw';
 import qrCode from 'heroicons/24/outline/qr-code.svg?raw';
+import chevronRight from 'heroicons/24/outline/chevron-right.svg?raw';
+import arrowUturnLeft from 'heroicons/24/outline/arrow-uturn-left.svg?raw';
+import squares2x2 from 'heroicons/24/outline/squares-2x2.svg?raw';
 
 // ─── Icon registry ───
 
@@ -163,6 +166,9 @@ export const ICON_MAP = {
   'server-stack': serverStack,
   'variable': variable,
   'qr-code': qrCode,
+  'chevron-right': chevronRight,
+  'arrow-uturn-left': arrowUturnLeft,
+  'squares-2x2': squares2x2,
 };
 
 // ─── Categories for the picker ───
