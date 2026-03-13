@@ -119,13 +119,36 @@ ringdeck/
 └── vite.config.js
 ```
 
+## 🔄 CI/CD & Release Flow
+
+Releases are fully automated via GitHub Actions:
+
+```
+feature-branch → PR → develop → PR → main → auto release
+```
+
+- **`develop`** — Integration branch. All feature branches target here via PR.
+- **`main`** — Production branch. Only receives PRs from `develop`.
+- **Automatic releases** — When a PR is merged into `main` and the version in `package.json` has changed, the workflow automatically:
+  1. Creates a git tag `vX.Y.Z`
+  2. Builds for macOS, Windows, and Linux
+  3. Publishes a GitHub Release with all artifacts
+
+Both `main` and `develop` are protected — no direct pushes allowed.
+
+### Releasing a new version
+
+1. Bump the version in `package.json` on your feature branch
+2. PR into `develop`, then PR from `develop` into `main`
+3. Merge the PR — the release happens automatically
+
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feat/amazing-feature`)
+2. Create a feature branch from `develop` (`git checkout -b feat/amazing-feature develop`)
 3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
 4. Push to the branch (`git push origin feat/amazing-feature`)
-5. Open a Pull Request
+5. Open a Pull Request targeting `develop`
 
 ## 📄 License
 
