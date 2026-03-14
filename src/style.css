@@ -372,6 +372,25 @@ body {
   opacity: 1;
 }
 
+.profile-tab-delete {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: opacity 0.12s, color 0.12s;
+  line-height: 1;
+}
+
+.profile-tab:hover .profile-tab-delete {
+  opacity: 0.6;
+}
+
+.profile-tab-delete:hover {
+  opacity: 1 !important;
+  color: #ff6b6b;
+}
+
 .right-header {
   display: flex;
   align-items: center;
@@ -1263,6 +1282,33 @@ body {
   letter-spacing: 0.05em;
 }
 
+.sub-action-header-btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.template-select {
+  background: var(--card-bg);
+  border: 1px solid rgba(10, 132, 255, 0.2);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.template-select:hover {
+  border-color: rgba(10, 132, 255, 0.4);
+}
+
+.template-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .btn-add-sub {
   background: none;
   border: 1px solid rgba(10, 132, 255, 0.2);
@@ -1316,6 +1362,17 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.sub-action-icon:hover {
+  border-color: rgba(10, 132, 255, 0.3);
+  background: rgba(10, 132, 255, 0.06);
 }
 
 .sub-action-icon svg {
