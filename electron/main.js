@@ -147,7 +147,30 @@ function executeAction(action) {
     case "Script": {
       let child;
       if (platform === "win32") {
-        child = spawn("cmd", ["/c", action.command], { detached: true, stdio: "ignore", shell: false });
+        if (action.command.startsWith("powershell")) {
+          // Write script to temp .ps1 file to avoid argument escaping issues
+          const raw = action.command.replace(/^powershell(?:\.exe)?\s*(?:-Command|-c)?\s*/i, '');
+          const os = require("os");
+          const tmpFile = path.join(os.tmpdir(), `ringdeck-ps-${Date.now()}.ps1`);
+          console.log("[RingDeck] PS raw script:", raw.substring(0, 200));
+          console.log("[RingDeck] PS temp file:", tmpFile);
+          fs.writeFileSync(tmpFile, raw, "utf8");
+          child = spawn("powershell.exe", [
+            "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", tmpFile
+          ], {
+            detached: true, stdio: ["ignore", "pipe", "pipe"], shell: false, windowsHide: true
+          });
+          child.stdout.on("data", (d) => console.log("[RingDeck] PS stdout:", d.toString()));
+          child.stderr.on("data", (d) => console.error("[RingDeck] PS stderr:", d.toString()));
+          child.on("close", (code) => {
+            console.log("[RingDeck] PS exit code:", code);
+            try { fs.unlinkSync(tmpFile); } catch(e) {}
+          });
+        } else {
+          child = spawn("cmd", ["/c", action.command], {
+            detached: true, stdio: "ignore", shell: false, windowsHide: true
+          });
+        }
       } else {
         child = spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
       }
@@ -211,8 +234,8 @@ function createMainWindow() {
 
 function createRingWindow() {
   ringWindow = new BrowserWindow({
-    width: 400,
-    height: 400,
+    width: 550,
+    height: 550,
     show: false,
     frame: false,
     transparent: true,
@@ -246,9 +269,9 @@ function showRingAtCursor(profileIndex) {
     createRingWindow();
   }
   const cursor = screen.getCursorScreenPoint();
-  const x = Math.round(cursor.x - 200);
-  const y = Math.round(cursor.y - 200);
-  ringWindow.setBounds({ x, y, width: 400, height: 400 });
+  const x = Math.round(cursor.x - 275);
+  const y = Math.round(cursor.y - 275);
+  ringWindow.setBounds({ x, y, width: 550, height: 550 });
 
   // Send active profile slices to the ring window
   const profile = config.profiles[profileIndex];
