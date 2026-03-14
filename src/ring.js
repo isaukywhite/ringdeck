@@ -90,13 +90,13 @@ function buildRing() {
   const n = slices.length;
 
   let html = `
-    <canvas class="ring-particles" width="400" height="400"></canvas>
+    <canvas class="ring-particles" width="${RING_SIZE}" height="${RING_SIZE}"></canvas>
 
-    <svg class="ring-orbit" viewBox="0 0 400 400">
-      <circle class="ring-orbit-circle" cx="200" cy="200" r="${NODE_ORBIT}" />
+    <svg class="ring-orbit" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}">
+      <circle class="ring-orbit-circle" cx="${CENTER}" cy="${CENTER}" r="${NODE_ORBIT}" />
     </svg>
 
-    <svg class="ring-sector-svg" viewBox="0 0 400 400">
+    <svg class="ring-sector-svg" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}">
       <defs>
         <radialGradient id="sectorGradient" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stop-color="rgba(45, 27, 105, 0.6)" />
@@ -109,24 +109,24 @@ function buildRing() {
       <path class="ring-sector-path" d="" fill="url(#sectorGradient)" />
     </svg>
 
-    <svg class="ring-beam" viewBox="0 0 400 400">
+    <svg class="ring-beam" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}">
       <defs>
         <linearGradient id="beamGradient" gradientUnits="userSpaceOnUse"
-          x1="200" y1="200" x2="200" y2="200">
+          x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}">
           <stop offset="0%" stop-color="rgba(45, 27, 105, 0)" />
           <stop offset="30%" stop-color="rgba(61, 42, 124, 0.3)" />
           <stop offset="70%" stop-color="rgba(10, 132, 255, 0.45)" />
           <stop offset="100%" stop-color="rgba(79, 209, 255, 0.5)" />
         </linearGradient>
       </defs>
-      <line class="ring-beam-glow" x1="200" y1="200" x2="200" y2="200" />
-      <line class="ring-beam-line" x1="200" y1="200" x2="200" y2="200" />
+      <line class="ring-beam-glow" x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}" />
+      <line class="ring-beam-line" x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}" />
     </svg>
 
-    <svg class="ring-arc-svg" viewBox="0 0 400 400">
+    <svg class="ring-arc-svg" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}">
       <defs>
         <linearGradient id="arcGradient" gradientUnits="userSpaceOnUse"
-          x1="65" y1="200" x2="335" y2="200">
+          x1="${CENTER - NODE_ORBIT - 40}" y1="${CENTER}" x2="${CENTER + NODE_ORBIT + 40}" y2="${CENTER}">
           <stop offset="0%" stop-color="#2D1B69" />
           <stop offset="25%" stop-color="#0A84FF" />
           <stop offset="50%" stop-color="#4FD1FF" />

@@ -1,6 +1,63 @@
 
 import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from './icons.js';
 
+const SUBMENU_TEMPLATES = [
+  {
+    name: "🌐 Browsers",
+    icon: "globe-alt",
+    slices: [
+      { label: "Chrome", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", args: [] } },
+      { label: "Edge", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", args: [] } },
+      { label: "Firefox", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files\\Mozilla Firefox\\firefox.exe", args: [] } },
+      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: "C:\\Users\\" + "AppData\\Local\\Programs\\Opera\\opera.exe", args: [] } },
+    ]
+  },
+  {
+    name: "🤖 IA Web",
+    icon: "cpu-chip",
+    slices: [
+      { label: "Gemini", icon: "sparkles", action: { type: "Script", command: "start https://gemini.google.com" } },
+      { label: "Claude", icon: "chat-bubble-left-right", action: { type: "Script", command: "start https://claude.ai" } },
+      { label: "Copilot", icon: "sparkles", action: { type: "Script", command: "start https://copilot.microsoft.com" } },
+      { label: "Perplexity", icon: "magnifying-glass", action: { type: "Script", command: "start https://perplexity.ai" } },
+      { label: "DeepSeek", icon: "cpu-chip", action: { type: "Script", command: "start https://chat.deepseek.com" } },
+      { label: "Manus", icon: "cpu-chip", action: { type: "Script", command: "start https://manus.im" } },
+    ]
+  },
+  {
+    name: "🎵 Mídia",
+    icon: "play",
+    slices: [
+      { label: "Play/Pause", icon: "play-pause", action: { type: "Script", command: "powershell -Command Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class MK{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte a,byte b,uint c,UIntPtr d);}';[MK]::keybd_event(0xB3,0,0,[UIntPtr]::Zero);[MK]::keybd_event(0xB3,0,2,[UIntPtr]::Zero)" } },
+      { label: "Next Track", icon: "forward", action: { type: "Script", command: "powershell -Command Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class MK{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte a,byte b,uint c,UIntPtr d);}';[MK]::keybd_event(0xB0,0,0,[UIntPtr]::Zero);[MK]::keybd_event(0xB0,0,2,[UIntPtr]::Zero)" } },
+      { label: "Prev Track", icon: "backward", action: { type: "Script", command: "powershell -Command Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class MK{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte a,byte b,uint c,UIntPtr d);}';[MK]::keybd_event(0xB1,0,0,[UIntPtr]::Zero);[MK]::keybd_event(0xB1,0,2,[UIntPtr]::Zero)" } },
+      { label: "Vol Up", icon: "speaker-wave", action: { type: "Script", command: "powershell -Command Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class MK{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte a,byte b,uint c,UIntPtr d);}';[MK]::keybd_event(0xAF,0,0,[UIntPtr]::Zero);[MK]::keybd_event(0xAF,0,2,[UIntPtr]::Zero)" } },
+      { label: "Vol Down", icon: "speaker-wave", action: { type: "Script", command: "powershell -Command Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class MK{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte a,byte b,uint c,UIntPtr d);}';[MK]::keybd_event(0xAE,0,0,[UIntPtr]::Zero);[MK]::keybd_event(0xAE,0,2,[UIntPtr]::Zero)" } },
+      { label: "Mute", icon: "speaker-x-mark", action: { type: "Script", command: "powershell -Command Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class MK{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte a,byte b,uint c,UIntPtr d);}';[MK]::keybd_event(0xAD,0,0,[UIntPtr]::Zero);[MK]::keybd_event(0xAD,0,2,[UIntPtr]::Zero)" } },
+    ]
+  },
+  {
+    name: "📝 LibreOffice",
+    icon: "document-text",
+    slices: [
+      { label: "Writer", icon: "document-text", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\swriter.exe", args: [] } },
+      { label: "Calc", icon: "table-cells", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\scalc.exe", args: [] } },
+      { label: "Impress", icon: "presentation-chart-bar", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\simpress.exe", args: [] } },
+      { label: "Draw", icon: "paint-brush", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\sdraw.exe", args: [] } },
+    ]
+  },
+  {
+    name: "💻 IA CLI",
+    icon: "command-line",
+    slices: [
+      { label: "Gemini CLI", icon: "command-line", action: { type: "Script", command: "start cmd /k gemini" } },
+      { label: "Claude Code", icon: "command-line", action: { type: "Script", command: "start cmd /k claude" } },
+      { label: "Codex", icon: "command-line", action: { type: "Script", command: "start cmd /k codex" } },
+      { label: "Aider", icon: "command-line", action: { type: "Script", command: "start cmd /k aider" } },
+    ]
+  }
+];
+
 let config = { profiles: [] };
 let activeRecorder = null;
 let expandedSlice = -1;
@@ -164,7 +221,7 @@ function renderSubActions(subSlices, parentIdx) {
       : appName(sub.action.path) || "No program";
     return `
       <div class="sub-action-card" data-parent="${parentIdx}" data-sub="${j}">
-        <span class="sub-action-icon">${icon}</span>
+        <button class="sub-action-icon" id="sub-icon-btn-${parentIdx}-${j}" title="Change icon">${icon}</button>
         <div class="sub-action-info">
           <input type="text" class="sub-action-label" id="sub-label-${parentIdx}-${j}"
             value="${escAttr(sub.label)}" placeholder="Sub-action name" />
@@ -204,6 +261,25 @@ function bindSubActionEvents(parentIdx, parentSlice) {
         icon: "cog-6-tooth",
         action: { type: "Script", command: "" },
       });
+      render();
+    });
+  }
+
+  // Template select
+  const templateSelect = document.getElementById(`template-select-${parentIdx}`);
+  if (templateSelect) {
+    templateSelect.addEventListener("click", (e) => e.stopPropagation());
+    templateSelect.addEventListener("change", (e) => {
+      e.stopPropagation();
+      const idx = e.target.value;
+      if (idx === "") return;
+      const template = SUBMENU_TEMPLATES[+idx];
+      if (!template) return;
+      // Deep copy template slices
+      parentSlice.action.slices = JSON.parse(JSON.stringify(template.slices));
+      // Auto-set parent icon and label if empty
+      if (!parentSlice.label) parentSlice.label = template.name.replace(/^[^\w]+\s*/, '');
+      parentSlice.icon = template.icon;
       render();
     });
   }
@@ -274,6 +350,15 @@ function bindSubActionEvents(parentIdx, parentSlice) {
         render();
       });
     }
+
+    // Icon picker for sub-action
+    const subIconBtn = document.getElementById(`sub-icon-btn-${parentIdx}-${j}`);
+    if (subIconBtn) {
+      subIconBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSubIconPicker(parentIdx, j);
+      });
+    }
   }
 }
 
@@ -342,7 +427,13 @@ function renderActionCard(s, i) {
           <div class="sub-action-section" id="sub-section-${i}">
             <div class="sub-action-header">
               <span class="sub-action-title">Sub-Actions</span>
-              <button class="btn-add-sub" id="add-sub-${i}">+ Add</button>
+              <div class="sub-action-header-btns">
+                <select class="template-select" id="template-select-${i}">
+                  <option value="">Use Template...</option>
+                  ${SUBMENU_TEMPLATES.map((t, ti) => `<option value="${ti}">${t.name}</option>`).join('')}
+                </select>
+                <button class="btn-add-sub" id="add-sub-${i}">+ Add</button>
+              </div>
             </div>
             <div class="sub-action-list" id="sub-list-${i}">
               ${renderSubActions(s.action.slices || [], i)}
@@ -362,10 +453,13 @@ function renderActionCard(s, i) {
 // ─── Profile tabs ───
 
 function renderProfileTabs() {
+  const canDelete = config.profiles.length > 1;
   const tabs = config.profiles.map((p, i) => {
     const active = i === activeProfileIndex ? " active" : "";
+    const delBtn = canDelete ? `<span class="profile-tab-delete" data-profile-delete="${i}" title="Delete profile">×</span>` : '';
     return `<button class="profile-tab${active}" data-profile="${i}">
       <span class="profile-tab-name" data-profile-name="${i}">${escAttr(p.name || 'Untitled')}</span>
+      ${delBtn}
     </button>`;
   }).join("");
 
@@ -393,7 +487,7 @@ function render() {
           <img class="app-logo" src="logo_ring_2_1.png" alt="" />
           <h1>RingDeck</h1>
         </div>
-        <div class="app-version">v0.1.0</div>
+        <div class="app-version">v0.2.3</div>
 
         ${renderPreview()}
 
@@ -480,6 +574,22 @@ function bindEvents() {
 
   const deleteProfileBtn = document.getElementById("delete-profile-btn");
   if (deleteProfileBtn) deleteProfileBtn.addEventListener("click", deleteProfile);
+
+  // Delete profile from tab × button
+  document.querySelectorAll("[data-profile-delete]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = +btn.dataset.profileDelete;
+      if (config.profiles.length <= 1) return;
+      if (!confirm(`Delete profile "${config.profiles[idx].name || "Untitled"}"?`)) return;
+      config.profiles.splice(idx, 1);
+      if (activeProfileIndex >= config.profiles.length) {
+        activeProfileIndex = config.profiles.length - 1;
+      }
+      expandedSlice = -1;
+      render();
+    });
+  });
 
   // Profile name input
   const profileNameInput = document.getElementById("profile-name-input");
@@ -825,6 +935,98 @@ function closeIconPicker() {
   if (!pickerOpen) return;
   pickerOpen = false;
   document.querySelectorAll(".icon-picker-overlay, .icon-picker").forEach((el) => el.remove());
+}
+
+function openSubIconPicker(parentIdx, subIdx) {
+  closeIconPicker();
+  pickerOpen = true;
+
+  const profile = activeProfile();
+  if (!profile) return;
+  const parentSlice = profile.slices[parentIdx];
+  if (!parentSlice || !parentSlice.action.slices) return;
+  const sub = parentSlice.action.slices[subIdx];
+  if (!sub) return;
+  const currentIcon = sub.icon;
+
+  const btn = document.getElementById(`sub-icon-btn-${parentIdx}-${subIdx}`);
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+
+  const overlay = document.createElement("div");
+  overlay.className = "icon-picker-overlay";
+  overlay.addEventListener("click", closeIconPicker);
+
+  const picker = document.createElement("div");
+  picker.className = "icon-picker";
+
+  const left = Math.min(Math.max(rect.left, 8), window.innerWidth - 330);
+  const top = Math.min(Math.max(rect.bottom + 6, 8), window.innerHeight - 430);
+  picker.style.left = left + "px";
+  picker.style.top = top + "px";
+
+  const header = document.createElement("div");
+  header.className = "icon-picker-header";
+
+  const search = document.createElement("input");
+  search.type = "text";
+  search.className = "icon-picker-search";
+  search.placeholder = "Search icons...";
+  search.autocomplete = "off";
+  search.spellcheck = false;
+  header.appendChild(search);
+
+  const selectedDiv = document.createElement("div");
+  selectedDiv.className = "icon-picker-selected";
+  selectedDiv.innerHTML = `
+    <span class="icon-picker-selected-icon">${resolveIcon(currentIcon)}</span>
+    <span class="icon-picker-selected-name">${currentIcon}</span>
+    <span class="icon-picker-selected-check">Selected</span>
+  `;
+  header.appendChild(selectedDiv);
+  picker.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "icon-picker-body";
+  picker.appendChild(body);
+
+  buildPickerContent(body, currentIcon, "");
+
+  requestAnimationFrame(() => {
+    const sel = body.querySelector(".icon-picker-cell.selected");
+    if (sel) sel.scrollIntoView({ block: "center", behavior: "instant" });
+    search.focus();
+  });
+
+  search.addEventListener("input", () => {
+    buildPickerContent(body, currentIcon, search.value);
+  });
+
+  search.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeIconPicker();
+  });
+
+  body.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const cell = e.target.closest(".icon-picker-cell");
+    if (!cell) return;
+
+    const iconName = cell.dataset.icon;
+    sub.icon = iconName;
+    sub.customIcon = null; // Clear custom icon when manually selecting
+
+    // Update sub-action icon inline
+    const subIconBtn = document.getElementById(`sub-icon-btn-${parentIdx}-${subIdx}`);
+    if (subIconBtn) subIconBtn.innerHTML = resolveIcon(iconName);
+
+    closeIconPicker();
+    render();
+  });
+
+  picker.addEventListener("click", (e) => e.stopPropagation());
+
+  document.body.appendChild(overlay);
+  document.body.appendChild(picker);
 }
 
 function escAttr(str) {
