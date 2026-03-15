@@ -11,3 +11,6 @@ temp-old/
 # SonarQube
 sonar.sh
 .scannerwork/
+
+# Coverage
+coverage/
