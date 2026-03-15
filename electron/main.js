@@ -8,9 +8,114 @@ const {
   Menu,
   screen,
   nativeImage,
+  net,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
+const os = require("os");
+
+// ─── Error Reporting (GlitchTip via Sentry API) ───
+
+const SENTRY_KEY = "77683c1f1e2c4cb48f396713891d691d";
+const SENTRY_URL = "https://ringdeckglitchtip.i2tech.dev/api/1/store/";
+const TELEMETRY_PATH = path.join(app.getPath("userData"), "telemetry.json");
+
+function getTelemetryConsent() {
+  try {
+    const data = JSON.parse(fs.readFileSync(TELEMETRY_PATH, "utf-8"));
+    return data.consent;
+  } catch {
+    return null;
+  }
+}
+
+function saveTelemetryConsent(consent) {
+  fs.writeFileSync(TELEMETRY_PATH, JSON.stringify({ consent }, null, 2));
+}
+
+let sentryEnabled = getTelemetryConsent() === true;
+
+function captureException(err, extra) {
+  if (!sentryEnabled) return;
+  const payload = {
+    event_id: crypto.randomUUID().replace(/-/g, ""),
+    timestamp: new Date().toISOString(),
+    platform: "node",
+    level: "error",
+    release: `ringdeck@${app.getVersion()}`,
+    environment: app.isPackaged ? "production" : "development",
+    contexts: {
+      os: { name: process.platform, version: os.release() },
+      runtime: { name: "Electron", version: process.versions.electron },
+    },
+    exception: {
+      values: [{
+        type: err.name || "Error",
+        value: err.message || String(err),
+        stacktrace: err.stack ? { frames: parseStack(err.stack) } : undefined,
+      }],
+    },
+    extra: extra || {},
+  };
+
+  try {
+    const url = `${SENTRY_URL}?sentry_key=${SENTRY_KEY}`;
+    const req = net.request({ method: "POST", url });
+    req.setHeader("Content-Type", "application/json");
+    req.on("response", (res) => {
+      console.log("[RingDeck] Error report sent, status:", res.statusCode);
+    });
+    req.on("error", (e) => {
+      console.error("[RingDeck] Error report failed:", e.message);
+    });
+    req.write(JSON.stringify(payload));
+    req.end();
+  } catch {}
+}
+
+function parseStack(stack) {
+  return stack.split("\n").slice(1).reverse().map((line) => {
+    const m = line.match(/at\s+(?:(.+?)\s+)?\(?(.*?):(\d+):(\d+)\)?/);
+    if (!m) return { filename: line.trim(), lineno: 0, colno: 0, function: "?" };
+    return { function: m[1] || "?", filename: m[2], lineno: +m[3], colno: +m[4] };
+  }).filter((f) => f.lineno > 0);
+}
+
+function setSentryEnabled(enabled) {
+  sentryEnabled = enabled;
+}
+
+async function askTelemetryConsent() {
+  const icon = nativeImage.createFromPath(
+    path.join(__dirname, "..", "logo_ring_2_1.png")
+  );
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    icon,
+    buttons: ["Yes, send anonymous reports", "No, thanks"],
+    defaultId: 0,
+    cancelId: 1,
+    title: "RingDeck — Error Reporting",
+    message: "Help improve RingDeck?",
+    detail: "Would you like to send anonymous crash and error reports? No personal data is collected — only technical information to help fix bugs.",
+  });
+  const consent = response === 0;
+  saveTelemetryConsent(consent);
+  return consent;
+}
+
+// ─── Global Error Handlers ───
+
+process.on("uncaughtException", (err) => {
+  console.error("[RingDeck] Uncaught exception:", err);
+  captureException(err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[RingDeck] Unhandled rejection:", reason);
+  if (reason instanceof Error) captureException(reason);
+});
 
 // ─── Config ───
 
@@ -124,7 +229,10 @@ function loadConfig() {
       const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
       return migrateConfig(raw);
     }
-  } catch {}
+  } catch (e) {
+    captureException(e);
+    console.error("[RingDeck] Config load error:", e);
+  }
   const defaults = getDefaultConfig();
   saveConfigToDisk(defaults);
   return structuredClone(defaults);
@@ -150,7 +258,6 @@ function executeAction(action) {
         if (action.command.startsWith("powershell")) {
           // Write script to temp .ps1 file to avoid argument escaping issues
           const raw = action.command.replace(/^powershell(?:\.exe)?\s*(?:-Command|-c)?\s*/i, '');
-          const os = require("os");
           const tmpFile = path.join(os.tmpdir(), `ringdeck-ps-${Date.now()}.ps1`);
           console.log("[RingDeck] PS raw script:", raw.substring(0, 200));
           console.log("[RingDeck] PS temp file:", tmpFile);
@@ -174,7 +281,7 @@ function executeAction(action) {
       } else {
         child = spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
       }
-      child.on("error", (err) => console.error("Script spawn error:", err));
+      child.on("error", (err) => { captureException(err); console.error("Script spawn error:", err); });
       child.unref();
       break;
     }
@@ -186,12 +293,12 @@ function executeAction(action) {
           args.push("--args", ...action.args);
         }
         const child = spawn("open", args, { detached: true, stdio: "ignore" });
-        child.on("error", (err) => console.error("Program spawn error:", err));
+        child.on("error", (err) => { captureException(err); console.error("Program spawn error:", err); });
         child.unref();
       } else {
         // Windows & Linux: use Electron shell.openPath (native, reliable)
         shell.openPath(action.path).then((err) => {
-          if (err) console.error("shell.openPath error:", err);
+          if (err) { captureException(new Error("shell.openPath: " + err)); console.error("shell.openPath error:", err); }
         });
       }
       break;
@@ -293,7 +400,7 @@ let registeredShortcuts = [];
 function registerAllShortcuts() {
   // Unregister all previous shortcuts
   for (const s of registeredShortcuts) {
-    try { globalShortcut.unregister(s); } catch {}
+    try { globalShortcut.unregister(s); } catch (e) { captureException(e); }
   }
   registeredShortcuts = [];
 
@@ -310,6 +417,7 @@ function registerAllShortcuts() {
       globalShortcut.register(mapped, () => showRingAtCursor(idx));
       registeredShortcuts.push(mapped);
     } catch (e) {
+      captureException(e, { profile: profile.name, shortcut: mapped });
       console.error(`Failed to register shortcut for profile "${profile.name}":`, mapped, e);
     }
   }
@@ -349,6 +457,13 @@ function setupTray() {
 
 // ─── IPC ───
 
+ipcMain.handle("get_telemetry_consent", () => sentryEnabled);
+
+ipcMain.handle("set_telemetry_consent", (_e, consent) => {
+  saveTelemetryConsent(consent);
+  setSentryEnabled(consent);
+});
+
 ipcMain.handle("get_config", () => config);
 
 ipcMain.handle("get_active_profile", () => {
@@ -387,10 +502,27 @@ ipcMain.handle("hide_ring", () => {
 });
 
 ipcMain.handle("get_file_icon", async (_e, filePath) => {
+  // app.getFileIcon crashes on macOS 26 + Electron 35 (native V8 SIGTRAP)
+  // Use nativeImage.createFromPath for .app bundles on macOS instead
   try {
+    if (process.platform === "darwin" && filePath.endsWith(".app")) {
+      const icnsPath = path.join(filePath, "Contents", "Resources");
+      if (fs.existsSync(icnsPath)) {
+        const files = fs.readdirSync(icnsPath);
+        const icns = files.find((f) => f.endsWith(".icns"));
+        if (icns) {
+          const img = nativeImage.createFromPath(path.join(icnsPath, icns));
+          if (!img.isEmpty()) {
+            return img.resize({ width: 64, height: 64 }).toDataURL();
+          }
+        }
+      }
+      return null;
+    }
     const icon = await app.getFileIcon(filePath, { size: "large" });
     return icon.toDataURL();
-  } catch {
+  } catch (e) {
+    captureException(e, { filePath });
     return null;
   }
 });
@@ -406,42 +538,69 @@ ipcMain.handle("execute_submenu_action", (_e, parentIndex, childIndex) => {
 });
 
 ipcMain.handle("open_file_dialog", async () => {
-  const platform = process.platform;
-  let defaultPath;
-  let filters;
+  try {
+    const platform = process.platform;
+    let defaultPath;
+    let filters;
 
-  if (platform === "darwin") {
-    defaultPath = "/Applications";
-    filters = [{ name: "Applications", extensions: ["app"] }];
-  } else if (platform === "win32") {
-    defaultPath = "C:\\Program Files";
-    filters = [
-      { name: "Executables", extensions: ["exe", "cmd", "bat", "lnk"] },
-      { name: "All Files", extensions: ["*"] },
-    ];
-  } else {
-    defaultPath = "/usr/bin";
-    filters = [{ name: "All Files", extensions: ["*"] }];
+    if (platform === "darwin") {
+      defaultPath = "/Applications";
+      filters = [{ name: "Applications", extensions: ["app"] }];
+    } else if (platform === "win32") {
+      defaultPath = "C:\\Program Files";
+      filters = [
+        { name: "Executables", extensions: ["exe", "cmd", "bat", "lnk"] },
+        { name: "All Files", extensions: ["*"] },
+      ];
+    } else {
+      defaultPath = "/usr/bin";
+      filters = [{ name: "All Files", extensions: ["*"] }];
+    }
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openFile"],
+      defaultPath,
+      filters,
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
+  } catch (e) {
+    captureException(e);
+    console.error("[RingDeck] open_file_dialog error:", e);
+    return null;
   }
-
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ["openFile"],
-    defaultPath,
-    filters,
-  });
-  if (result.canceled || !result.filePaths.length) return null;
-  return result.filePaths[0];
 });
 
 // ─── App Lifecycle ───
 
-app.whenReady().then(() => {
+// ─── Single Instance Lock ───
+
+const gotLock = app.requestSingleInstanceLock();
+
+if (!gotLock) {
+  app.exit(0);
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
+app.whenReady().then(async () => {
   // Set dock icon
   const appIcon = nativeImage.createFromPath(
     path.join(__dirname, "..", "logo_ring_2_1.png")
   );
   if (process.platform === "darwin" && app.dock) {
     app.dock.setIcon(appIcon);
+  }
+
+  // Ask for telemetry consent on first launch
+  if (getTelemetryConsent() === null) {
+    const consent = await askTelemetryConsent();
+    setSentryEnabled(consent);
   }
 
   createMainWindow();
