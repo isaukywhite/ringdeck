@@ -1,5 +1,7 @@
-
 import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from './icons.js';
+
+let sentryEnabled = false;
+window.api.getTelemetryConsent().then((v) => { sentryEnabled = v; });
 
 const SUBMENU_TEMPLATES = [
   {
@@ -489,6 +491,11 @@ function render() {
         </div>
         <div class="app-version">v0.2.3</div>
 
+        <label class="telemetry-toggle">
+          <input type="checkbox" id="telemetry-checkbox" ${sentryEnabled ? "checked" : ""} />
+          <span class="telemetry-label">Send anonymous error reports</span>
+        </label>
+
         ${renderPreview()}
 
         <div class="shortcut-area">
@@ -556,6 +563,12 @@ function bindEvents() {
   }
   document.getElementById("add-btn").addEventListener("click", addSlice);
   document.getElementById("save-btn").addEventListener("click", saveConfig);
+
+  // Telemetry toggle
+  document.getElementById("telemetry-checkbox").addEventListener("change", (e) => {
+    sentryEnabled = e.target.checked;
+    window.api.setTelemetryConsent(sentryEnabled);
+  });
 
   // Profile tabs
   document.querySelectorAll(".profile-tab[data-profile]").forEach((tab) => {

@@ -1,4 +1,3 @@
-
 import { resolveIcon, ICON_MAP } from './icons.js';
 
 const RING_SIZE = 400;

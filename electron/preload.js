@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld("api", {
   openFileDialog: () => ipcRenderer.invoke("open_file_dialog"),
   getFileIcon: (filePath) => ipcRenderer.invoke("get_file_icon", filePath),
   executeSubmenuAction: (parentIndex, childIndex) => ipcRenderer.invoke("execute_submenu_action", parentIndex, childIndex),
+  getTelemetryConsent: () => ipcRenderer.invoke("get_telemetry_consent"),
+  setTelemetryConsent: (consent) => ipcRenderer.invoke("set_telemetry_consent", consent),
 });

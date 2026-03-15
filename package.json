@@ -24,7 +24,10 @@
       "icon": "build/icon.icns"
     },
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/icon.ico",
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
@@ -35,7 +38,10 @@
       "artifactName": "${productName}-${version}-setup.${ext}"
     },
     "linux": {
-      "target": ["AppImage", "tar.gz"],
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
       "category": "Utility"
     },
     "files": [

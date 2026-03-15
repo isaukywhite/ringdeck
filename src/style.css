@@ -89,8 +89,25 @@ body {
   font-size: 10px;
   color: var(--text-tertiary);
   align-self: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   padding-left: 42px;
+}
+
+.telemetry-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding-left: 42px;
+  margin-bottom: 24px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.telemetry-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* Ring preview */
