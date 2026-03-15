@@ -1,4 +1,4 @@
-import { resolveIcon, ICON_MAP } from './icons.js';
+import { resolveIcon } from './icons.js';
 
 const RING_SIZE = 400;
 const CENTER = RING_SIZE / 2;
@@ -52,14 +52,14 @@ function subNodePosition(childIndex, childCount, parentIndex, parentCount) {
 }
 
 async function init() {
-  const { profile } = await window.api.getActiveProfile();
+  const { profile } = await globalThis.api.getActiveProfile();
   slices = profile.slices;
   buildRing();
   setupInteraction();
   startParticles();
 }
 
-window.__updateSlices = function (newSlices) {
+globalThis.__updateSlices = function (newSlices) {
   slices = newSlices;
   activeSubmenu = -1;
   submenuHoveredIndex = -1;
@@ -144,7 +144,7 @@ function buildRing() {
     for (let i = 0; i < n; i++) {
       const p = nodePosition(i, n);
       const s = slices[i];
-      const isSubmenu = s.action && s.action.type === "Submenu";
+      const isSubmenu = s.action?.type === "Submenu";
       const icon = s.customIcon
         ? `<img src="${s.customIcon}" style="width:24px;height:24px;" />`
         : resolveIcon(s.icon);
@@ -178,7 +178,7 @@ function buildSubRing(parentIndex) {
   if (!subRingEl) return;
 
   const parentSlice = slices[parentIndex];
-  if (!parentSlice || parentSlice.action.type !== "Submenu") {
+  if (!parentSlice || parentSlice.action?.type !== "Submenu") {
     subRingEl.innerHTML = "";
     subRingEl.classList.remove("visible");
     return;
@@ -263,13 +263,13 @@ function startParticles() {
 
   for (let i = 0; i < NUM; i++) {
     particles.push({
-      angle: Math.random() * Math.PI * 2,
-      radius: NODE_ORBIT - 4 + Math.random() * 8,
-      speed: 0.003 + Math.random() * 0.004,
-      size: 0.8 + Math.random() * 1.2,
-      alpha: 0.15 + Math.random() * 0.3,
-      drift: (Math.random() - 0.5) * 0.3,
-      color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)],
+      angle: Math.random() * Math.PI * 2, // NOSONAR — visual particles only
+      radius: NODE_ORBIT - 4 + Math.random() * 8, // NOSONAR — visual particles only
+      speed: 0.003 + Math.random() * 0.004, // NOSONAR — visual particles only
+      size: 0.8 + Math.random() * 1.2, // NOSONAR — visual particles only
+      alpha: 0.15 + Math.random() * 0.3, // NOSONAR — visual particles only
+      drift: (Math.random() - 0.5) * 0.3, // NOSONAR — visual particles only
+      color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)], // NOSONAR — visual particles only
     });
   }
 
@@ -310,6 +310,57 @@ function startParticles() {
   }
 
   draw();
+}
+
+// ─── Hover helpers ───
+
+function activateArcPath(arcPath, arcD) {
+  arcPath.classList.remove("active");
+  arcPath.getBBox(); // force reflow
+  arcPath.setAttribute("d", arcD);
+  const arcLen = arcPath.getTotalLength();
+  arcPath.style.strokeDasharray = arcLen;
+  arcPath.style.strokeDashoffset = arcLen;
+  arcPath.style.setProperty("--arc-len", arcLen);
+  arcPath.classList.add("active");
+}
+
+function activateBeamLine(beamLine, pos) {
+  beamLine.classList.remove("active");
+  beamLine.setAttribute("x2", pos.x.toFixed(2));
+  beamLine.setAttribute("y2", pos.y.toFixed(2));
+  const bLen = Math.hypot(pos.x - CENTER, pos.y - CENTER);
+  beamLine.style.strokeDasharray = bLen;
+  beamLine.style.strokeDashoffset = bLen;
+  beamLine.style.setProperty("--beam-len", bLen);
+  beamLine.getBBox(); // force reflow
+  beamLine.classList.add("active");
+}
+
+function activateBeamGlow(beamGlow, pos) {
+  beamGlow.setAttribute("x2", pos.x.toFixed(2));
+  beamGlow.setAttribute("y2", pos.y.toFixed(2));
+  beamGlow.classList.add("active");
+}
+
+function deactivateHoverElements(center, orbitCircle, arcPath, arcGlow, beamLine, beamGlow, sectorPath) {
+  if (center) center.classList.remove("active");
+  if (orbitCircle) orbitCircle.classList.remove("active");
+  if (arcPath) arcPath.classList.remove("active");
+  if (arcGlow) arcGlow.classList.remove("active");
+  if (beamLine) beamLine.classList.remove("active");
+  if (beamGlow) beamGlow.classList.remove("active");
+  if (sectorPath) sectorPath.classList.remove("active");
+}
+
+function scheduleSubmenuOpen(idx) {
+  submenuTimer = setTimeout(() => {
+    if (hoveredIndex === idx) {
+      activeSubmenu = idx;
+      submenuHoveredIndex = -1;
+      buildSubRing(idx);
+    }
+  }, SUBMENU_HOVER_DELAY);
 }
 
 // ─── Hover logic ───
@@ -356,14 +407,7 @@ function updateHover(idx) {
     const arcD = describeArc(CENTER, CENTER, ARC_RADIUS, a1, a2);
 
     if (arcPath) {
-      arcPath.classList.remove("active");
-      void arcPath.getBBox();
-      arcPath.setAttribute("d", arcD);
-      const arcLen = arcPath.getTotalLength();
-      arcPath.style.strokeDasharray = arcLen;
-      arcPath.style.strokeDashoffset = arcLen;
-      arcPath.style.setProperty("--arc-len", arcLen);
-      arcPath.classList.add("active");
+      activateArcPath(arcPath, arcD);
     }
     if (arcGlow) {
       arcGlow.setAttribute("d", arcD);
@@ -375,20 +419,10 @@ function updateHover(idx) {
       beamGrad.setAttribute("y2", pos.y.toFixed(2));
     }
     if (beamLine) {
-      beamLine.classList.remove("active");
-      beamLine.setAttribute("x2", pos.x.toFixed(2));
-      beamLine.setAttribute("y2", pos.y.toFixed(2));
-      const bLen = Math.sqrt((pos.x - CENTER) ** 2 + (pos.y - CENTER) ** 2);
-      beamLine.style.strokeDasharray = bLen;
-      beamLine.style.strokeDashoffset = bLen;
-      beamLine.style.setProperty("--beam-len", bLen);
-      void beamLine.getBBox();
-      beamLine.classList.add("active");
+      activateBeamLine(beamLine, pos);
     }
     if (beamGlow) {
-      beamGlow.setAttribute("x2", pos.x.toFixed(2));
-      beamGlow.setAttribute("y2", pos.y.toFixed(2));
-      beamGlow.classList.add("active");
+      activateBeamGlow(beamGlow, pos);
     }
 
     const sectorD = describeSector(CENTER, CENTER, ARC_RADIUS, a1, a2);
@@ -399,26 +433,14 @@ function updateHover(idx) {
 
     // Check if hovered item is a submenu — open sub-ring after delay
     const s = slices[idx];
-    if (s && s.action && s.action.type === "Submenu") {
-      submenuTimer = setTimeout(() => {
-        if (hoveredIndex === idx) {
-          activeSubmenu = idx;
-          submenuHoveredIndex = -1;
-          buildSubRing(idx);
-        }
-      }, SUBMENU_HOVER_DELAY);
+    if (s?.action?.type === "Submenu") {
+      scheduleSubmenuOpen(idx);
     } else if (activeSubmenu >= 0 && activeSubmenu !== idx) {
       // Moving to a non-submenu item — close any open sub-ring
       closeSubRing();
     }
   } else {
-    if (center) center.classList.remove("active");
-    if (orbitCircle) orbitCircle.classList.remove("active");
-    if (arcPath) arcPath.classList.remove("active");
-    if (arcGlow) arcGlow.classList.remove("active");
-    if (beamLine) beamLine.classList.remove("active");
-    if (beamGlow) beamGlow.classList.remove("active");
-    if (sectorPath) sectorPath.classList.remove("active");
+    deactivateHoverElements(center, orbitCircle, arcPath, arcGlow, beamLine, beamGlow, sectorPath);
 
     // If mouse leaves entirely and no submenu open, close
     if (activeSubmenu >= 0) {
@@ -429,7 +451,7 @@ function updateHover(idx) {
 
 function closestSlice(mx, my) {
   if (slices.length === 0) return -1;
-  if (Math.sqrt(mx * mx + my * my) < 22) return -1;
+  if (Math.hypot(mx, my) < 22) return -1;
 
   const angle = Math.atan2(my, mx);
   const n = slices.length;
@@ -448,7 +470,7 @@ function closestSlice(mx, my) {
 function closestSubNode(mx, my) {
   if (activeSubmenu < 0) return -1;
   const parentSlice = slices[activeSubmenu];
-  if (!parentSlice || parentSlice.action.type !== "Submenu") return -1;
+  if (!parentSlice || parentSlice.action?.type !== "Submenu") return -1;
 
   const children = parentSlice.action.slices || [];
   const n = children.length;
@@ -460,7 +482,7 @@ function closestSubNode(mx, my) {
     const pos = subNodePosition(i, n, activeSubmenu, slices.length);
     const dx = (mx + CENTER) - pos.x;
     const dy = (my + CENTER) - pos.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.hypot(dx, dy);
     if (dist < bestDist) {
       bestDist = dist;
       best = i;
@@ -479,62 +501,168 @@ function isNearBackButton(mx, my) {
   const backY = NODE_ORBIT * Math.sin(parentAngle);
   const dx = mx - backX;
   const dy = my - backY;
-  return Math.sqrt(dx * dx + dy * dy) < 18;
+  return Math.hypot(dx, dy) < 18;
 }
+
+// ─── Submenu interaction helpers ───
+
+function highlightSubNode(subIdx) {
+  if (subIdx !== submenuHoveredIndex) {
+    submenuHoveredIndex = subIdx;
+    const subRingEl = document.getElementById("sub-ring");
+    if (subRingEl) {
+      subRingEl.querySelectorAll(".sub-ring-node").forEach((el) => el.classList.remove("hovered"));
+      const target = subRingEl.querySelector(`.sub-ring-node[data-sub-index="${subIdx}"]`);
+      if (target) target.classList.add("hovered");
+    }
+  }
+}
+
+function highlightBackButton() {
+  submenuHoveredIndex = -1;
+  const subRingEl = document.getElementById("sub-ring");
+  if (subRingEl) {
+    subRingEl.querySelectorAll(".sub-ring-node").forEach((el) => el.classList.remove("hovered"));
+    const back = subRingEl.querySelector(".sub-ring-back");
+    if (back) back.classList.add("hovered");
+  }
+}
+
+function clearSubRingHover() {
+  submenuHoveredIndex = -1;
+  const subRingEl = document.getElementById("sub-ring");
+  if (subRingEl) {
+    subRingEl.querySelectorAll(".sub-ring-node, .sub-ring-back").forEach((el) => el.classList.remove("hovered"));
+  }
+}
+
+function handleSubmenuMouseMove(mx, my) {
+  // Check if hovering a sub-node
+  const subIdx = closestSubNode(mx, my);
+  if (subIdx >= 0) {
+    highlightSubNode(subIdx);
+    return true;
+  }
+
+  // Check if hovering back button
+  if (isNearBackButton(mx, my)) {
+    highlightBackButton();
+    return true;
+  }
+
+  // Check if hovering a main ring node
+  const mainIdx = closestSlice(mx, my);
+  if (mainIdx >= 0 && mainIdx !== activeSubmenu) {
+    closeSubRing();
+    updateHover(mainIdx);
+    return true;
+  }
+
+  // Clear sub-node hover
+  clearSubRingHover();
+  return true;
+}
+
+async function executeSubmenuClick() {
+  try { await globalThis.api.executeSubmenuAction(activeSubmenu, submenuHoveredIndex); }
+  catch (e) { console.error("Submenu action failed:", e); }
+  closeSubRing();
+  hoveredIndex = -1;
+  await globalThis.api.hideRing();
+}
+
+function toggleSubmenuForHovered() {
+  if (activeSubmenu === hoveredIndex) {
+    closeSubRing();
+  } else {
+    activeSubmenu = hoveredIndex;
+    submenuHoveredIndex = -1;
+    buildSubRing(hoveredIndex);
+  }
+}
+
+async function handleMouseUp(container) {
+  // If submenu is open, check if clicking a sub-item or back
+  if (activeSubmenu >= 0) {
+    if (submenuHoveredIndex >= 0) {
+      await executeSubmenuClick();
+      return;
+    }
+
+    // Check back button
+    const backEl = document.getElementById("sub-ring")?.querySelector(".sub-ring-back.hovered");
+    if (backEl) {
+      closeSubRing();
+      return;
+    }
+  }
+
+  if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
+    const s = slices[hoveredIndex];
+    // If it's a submenu, don't execute — just open/toggle sub-ring
+    if (s?.action?.type === "Submenu") {
+      toggleSubmenuForHovered();
+      return;
+    }
+    try { await globalThis.api.executeAction(hoveredIndex); }
+    catch (e) { console.error("Action failed:", e); }
+  }
+  hoveredIndex = -1;
+  closeSubRing();
+  await globalThis.api.hideRing();
+}
+
+async function handleKeyUp(e) {
+  // Ignore if ring just appeared (debounce 200ms to avoid premature activation)
+  if (Date.now() - handleKeyUp._ringShowTime < 200) return;
+
+  // Only activate when a MODIFIER key (Ctrl/Alt/Shift/Meta) is released
+  // and NO other modifiers remain held.
+  const isModifierKey = ["Control", "Alt", "Shift", "Meta"].includes(e.key);
+  if (!isModifierKey) return;
+
+  const hasModifiers = e.ctrlKey || e.altKey || e.shiftKey || e.metaKey;
+  if (hasModifiers) return; // Still holding other modifiers
+
+  // If submenu is open and a sub-item is hovered → execute sub-action
+  if (activeSubmenu >= 0 && submenuHoveredIndex >= 0) {
+    try { await globalThis.api.executeSubmenuAction(activeSubmenu, submenuHoveredIndex); }
+    catch (err) { console.error("Submenu action failed:", err); }
+    closeSubRing();
+    hoveredIndex = -1;
+    await globalThis.api.hideRing();
+    return;
+  }
+
+  // All modifiers released → activate hovered action (if not submenu)
+  if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
+    const s = slices[hoveredIndex];
+    if (s?.action?.type === "Submenu") {
+      // Don't close ring — just open the submenu on release
+      activeSubmenu = hoveredIndex;
+      submenuHoveredIndex = -1;
+      buildSubRing(hoveredIndex);
+      return;
+    }
+    try { await globalThis.api.executeAction(hoveredIndex); }
+    catch (err) { console.error("Action failed:", err); }
+  }
+  hoveredIndex = -1;
+  closeSubRing();
+  await globalThis.api.hideRing();
+}
+handleKeyUp._ringShowTime = 0;
 
 function setupInteraction() {
   const container = document.getElementById("ring");
 
   container.addEventListener("mousemove", (e) => {
-    const r = container.getBoundingClientRect();
-    const mx = e.clientX - r.left - CENTER;
-    const my = e.clientY - r.top - CENTER;
+    const rect = container.getBoundingClientRect();
+    const mx = e.clientX - rect.left - CENTER;
+    const my = e.clientY - rect.top - CENTER;
 
     if (activeSubmenu >= 0) {
-      // Check if hovering a sub-node
-      const subIdx = closestSubNode(mx, my);
-      if (subIdx >= 0) {
-        // Hovering a sub-node
-        if (subIdx !== submenuHoveredIndex) {
-          submenuHoveredIndex = subIdx;
-          // Update visual highlight
-          const subRingEl = document.getElementById("sub-ring");
-          if (subRingEl) {
-            subRingEl.querySelectorAll(".sub-ring-node").forEach((el) => el.classList.remove("hovered"));
-            const target = subRingEl.querySelector(`.sub-ring-node[data-sub-index="${subIdx}"]`);
-            if (target) target.classList.add("hovered");
-          }
-        }
-        return;
-      }
-
-      // Check if hovering back button
-      if (isNearBackButton(mx, my)) {
-        submenuHoveredIndex = -1;
-        const subRingEl = document.getElementById("sub-ring");
-        if (subRingEl) {
-          subRingEl.querySelectorAll(".sub-ring-node").forEach((el) => el.classList.remove("hovered"));
-          const back = subRingEl.querySelector(".sub-ring-back");
-          if (back) back.classList.add("hovered");
-        }
-        return;
-      }
-
-      // Check if hovering a main ring node
-      const mainIdx = closestSlice(mx, my);
-      if (mainIdx >= 0 && mainIdx !== activeSubmenu) {
-        // Moving to a different main node — close submenu
-        closeSubRing();
-        updateHover(mainIdx);
-        return;
-      }
-
-      // Clear sub-node hover
-      submenuHoveredIndex = -1;
-      const subRingEl = document.getElementById("sub-ring");
-      if (subRingEl) {
-        subRingEl.querySelectorAll(".sub-ring-node, .sub-ring-back").forEach((el) => el.classList.remove("hovered"));
-      }
+      handleSubmenuMouseMove(mx, my);
       return;
     }
 
@@ -549,55 +677,15 @@ function setupInteraction() {
 
   // Click (mouseup) still works as fallback
   container.addEventListener("mouseup", async () => {
-    // If submenu is open, check if clicking a sub-item or back
-    if (activeSubmenu >= 0) {
-      const r = container.getBoundingClientRect();
-      // Use the last known hovered state
-      if (submenuHoveredIndex >= 0) {
-        try { await window.api.executeSubmenuAction(activeSubmenu, submenuHoveredIndex); }
-        catch (e) { console.error("Submenu action failed:", e); }
-        closeSubRing();
-        hoveredIndex = -1;
-        await window.api.hideRing();
-        return;
-      }
-
-      // Check back button
-      const backEl = document.getElementById("sub-ring")?.querySelector(".sub-ring-back.hovered");
-      if (backEl) {
-        closeSubRing();
-        return;
-      }
-    }
-
-    if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
-      const s = slices[hoveredIndex];
-      // If it's a submenu, don't execute — just open/toggle sub-ring
-      if (s && s.action && s.action.type === "Submenu") {
-        if (activeSubmenu === hoveredIndex) {
-          closeSubRing();
-        } else {
-          activeSubmenu = hoveredIndex;
-          submenuHoveredIndex = -1;
-          buildSubRing(hoveredIndex);
-        }
-        return;
-      }
-      try { await window.api.executeAction(hoveredIndex); }
-      catch (e) { console.error("Action failed:", e); }
-    }
-    hoveredIndex = -1;
-    closeSubRing();
-    await window.api.hideRing();
+    await handleMouseUp(container);
   });
 
   // Release-to-activate: when modifier keys are released, trigger hovered action
-  let ringShowTime = 0;
 
   // Track when ring becomes visible
   const observer = new MutationObserver(() => {
     if (!document.hidden) {
-      ringShowTime = Date.now();
+      handleKeyUp._ringShowTime = Date.now();
     }
   });
   observer.observe(document, { attributes: true, attributeFilter: ["visibilityState"] });
@@ -605,49 +693,11 @@ function setupInteraction() {
   // Also set on DOMContentLoaded / visibility
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
-      ringShowTime = Date.now();
+      handleKeyUp._ringShowTime = Date.now();
     }
   });
 
-  document.addEventListener("keyup", async (e) => {
-    // Ignore if ring just appeared (debounce 200ms to avoid premature activation)
-    if (Date.now() - ringShowTime < 200) return;
-
-    // Only activate when a MODIFIER key (Ctrl/Alt/Shift/Meta) is released
-    // and NO other modifiers remain held.
-    const isModifierKey = ["Control", "Alt", "Shift", "Meta"].includes(e.key);
-    if (!isModifierKey) return;
-
-    const hasModifiers = e.ctrlKey || e.altKey || e.shiftKey || e.metaKey;
-    if (hasModifiers) return; // Still holding other modifiers
-
-    // If submenu is open and a sub-item is hovered → execute sub-action
-    if (activeSubmenu >= 0 && submenuHoveredIndex >= 0) {
-      try { await window.api.executeSubmenuAction(activeSubmenu, submenuHoveredIndex); }
-      catch (err) { console.error("Submenu action failed:", err); }
-      closeSubRing();
-      hoveredIndex = -1;
-      await window.api.hideRing();
-      return;
-    }
-
-    // All modifiers released → activate hovered action (if not submenu)
-    if (hoveredIndex >= 0 && hoveredIndex < slices.length) {
-      const s = slices[hoveredIndex];
-      if (s && s.action && s.action.type === "Submenu") {
-        // Don't close ring — just open the submenu on release
-        activeSubmenu = hoveredIndex;
-        submenuHoveredIndex = -1;
-        buildSubRing(hoveredIndex);
-        return;
-      }
-      try { await window.api.executeAction(hoveredIndex); }
-      catch (err) { console.error("Action failed:", err); }
-    }
-    hoveredIndex = -1;
-    closeSubRing();
-    await window.api.hideRing();
-  });
+  document.addEventListener("keyup", handleKeyUp);
 
   document.addEventListener("keydown", async (e) => {
     if (e.key === "Escape") {
@@ -656,7 +706,7 @@ function setupInteraction() {
         return;
       }
       hoveredIndex = -1;
-      await window.api.hideRing();
+      await globalThis.api.hideRing();
     }
   });
 }
@@ -668,14 +718,14 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(async () => {
     if (!document.hidden && wasHidden) {
       wasHidden = false;
-      const { profile } = await window.api.getActiveProfile();
+      const { profile } = await globalThis.api.getActiveProfile();
       slices = profile.slices;
       hoveredIndex = -1;
       activeSubmenu = -1;
       submenuHoveredIndex = -1;
       buildRing();
       ring.classList.remove("appear");
-      void ring.offsetWidth;
+      ring.getAnimations(); // force reflow
       ring.classList.add("appear");
     } else if (document.hidden) {
       wasHidden = true;
@@ -683,4 +733,4 @@ document.addEventListener("DOMContentLoaded", () => {
   }, 100);
 });
 
-init();
+init(); // NOSONAR

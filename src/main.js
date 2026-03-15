@@ -1,17 +1,17 @@
 import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from './icons.js';
 
 let sentryEnabled = false;
-window.api.getTelemetryConsent().then((v) => { sentryEnabled = v; });
+globalThis.api.getTelemetryConsent().then((v) => { sentryEnabled = v; }); // NOSONAR
 
 const SUBMENU_TEMPLATES = [
   {
     name: "🌐 Browsers",
     icon: "globe-alt",
     slices: [
-      { label: "Chrome", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", args: [] } },
-      { label: "Edge", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", args: [] } },
-      { label: "Firefox", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files\\Mozilla Firefox\\firefox.exe", args: [] } },
-      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: "C:\\Users\\" + "AppData\\Local\\Programs\\Opera\\opera.exe", args: [] } },
+      { label: "Chrome", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`, args: [] } },
+      { label: "Edge", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, args: [] } },
+      { label: "Firefox", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Program Files\Mozilla Firefox\firefox.exe`, args: [] } },
+      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Users\` + String.raw`AppData\Local\Programs\Opera\opera.exe`, args: [] } },
     ]
   },
   {
@@ -42,10 +42,10 @@ const SUBMENU_TEMPLATES = [
     name: "📝 LibreOffice",
     icon: "document-text",
     slices: [
-      { label: "Writer", icon: "document-text", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\swriter.exe", args: [] } },
-      { label: "Calc", icon: "table-cells", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\scalc.exe", args: [] } },
-      { label: "Impress", icon: "presentation-chart-bar", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\simpress.exe", args: [] } },
-      { label: "Draw", icon: "paint-brush", action: { type: "Program", path: "C:\\Program Files\\LibreOffice\\program\\sdraw.exe", args: [] } },
+      { label: "Writer", icon: "document-text", action: { type: "Program", path: String.raw`C:\Program Files\LibreOffice\program\swriter.exe`, args: [] } },
+      { label: "Calc", icon: "table-cells", action: { type: "Program", path: String.raw`C:\Program Files\LibreOffice\program\scalc.exe`, args: [] } },
+      { label: "Impress", icon: "presentation-chart-bar", action: { type: "Program", path: String.raw`C:\Program Files\LibreOffice\program\simpress.exe`, args: [] } },
+      { label: "Draw", icon: "paint-brush", action: { type: "Program", path: String.raw`C:\Program Files\LibreOffice\program\sdraw.exe`, args: [] } },
     ]
   },
   {
@@ -89,7 +89,7 @@ function actionSummary(action) {
   if (action.type === "Program") return appName(action.path) || "No program";
   if (action.type === "Submenu") {
     const count = (action.slices || []).length;
-    return `${count} sub-action${count !== 1 ? "s" : ""}`;
+    return `${count} sub-action${count === 1 ? "" : "s"}`;
   }
   return "";
 }
@@ -154,7 +154,7 @@ function migrateIcon(s) {
 }
 
 async function loadConfig() {
-  config = await window.api.getConfig();
+  config = await globalThis.api.getConfig();
   // Migrate legacy format if needed
   if (config.slices && !config.profiles) {
     config = {
@@ -210,6 +210,23 @@ function renderPreview() {
 
 // ─── Sub-action helpers (for Submenu type) ───
 
+function renderSubActionInput(sub, parentIdx, j) {
+  if (sub.action.type === "Script") {
+    return `
+      <input type="text" class="sub-action-cmd" id="sub-cmd-${parentIdx}-${j}"
+        value="${escAttr(sub.action.command || "")}" placeholder="Command" />
+    `;
+  }
+  return `
+    <div class="sub-action-program">
+      <span class="sub-action-path${sub.action.path ? "" : " empty"}" id="sub-path-${parentIdx}-${j}">
+        ${sub.action.path ? appName(sub.action.path) : "Choose..."}
+      </span>
+      <button class="btn-browse-sub" id="sub-browse-${parentIdx}-${j}">Browse</button>
+    </div>
+  `;
+}
+
 function renderSubActions(subSlices, parentIdx) {
   if (!subSlices || subSlices.length === 0) {
     return `<div class="sub-action-empty">No sub-actions yet. Click "+ Add" above.</div>`;
@@ -233,17 +250,7 @@ function renderSubActions(subSlices, parentIdx) {
           <option value="Script"${sub.action.type === "Script" ? " selected" : ""}>Script</option>
           <option value="Program"${sub.action.type === "Program" ? " selected" : ""}>Program</option>
         </select>
-        ${sub.action.type === "Script" ? `
-          <input type="text" class="sub-action-cmd" id="sub-cmd-${parentIdx}-${j}"
-            value="${escAttr(sub.action.command || "")}" placeholder="Command" />
-        ` : `
-          <div class="sub-action-program">
-            <span class="sub-action-path${sub.action.path ? "" : " empty"}" id="sub-path-${parentIdx}-${j}">
-              ${sub.action.path ? appName(sub.action.path) : "Choose..."}
-            </span>
-            <button class="btn-browse-sub" id="sub-browse-${parentIdx}-${j}">Browse</button>
-          </div>
-        `}
+        ${renderSubActionInput(sub, parentIdx, j)}
         <button class="btn-delete-sub" id="sub-del-${parentIdx}-${j}" title="Remove">×</button>
       </div>`;
   }).join("");
@@ -278,7 +285,7 @@ function bindSubActionEvents(parentIdx, parentSlice) {
       const template = SUBMENU_TEMPLATES[+idx];
       if (!template) return;
       // Deep copy template slices
-      parentSlice.action.slices = JSON.parse(JSON.stringify(template.slices));
+      parentSlice.action.slices = structuredClone(template.slices);
       // Auto-set parent icon and label if empty
       if (!parentSlice.label) parentSlice.label = template.name.replace(/^[^\w]+\s*/, '');
       parentSlice.icon = template.icon;
@@ -325,7 +332,7 @@ function bindSubActionEvents(parentIdx, parentSlice) {
     if (browseEl) {
       browseEl.addEventListener("click", async (e) => {
         e.stopPropagation();
-        const selected = await window.api.openFileDialog();
+        const selected = await globalThis.api.openFileDialog();
         if (selected) {
           sub.action.path = selected;
           const pathEl = document.getElementById(`sub-path-${parentIdx}-${j}`);
@@ -334,7 +341,7 @@ function bindSubActionEvents(parentIdx, parentSlice) {
             pathEl.classList.remove("empty");
           }
           // Auto-extract icon
-          const iconDataUrl = await window.api.getFileIcon(selected);
+          const iconDataUrl = await globalThis.api.getFileIcon(selected);
           if (iconDataUrl) {
             sub.customIcon = iconDataUrl;
           }
@@ -364,6 +371,90 @@ function bindSubActionEvents(parentIdx, parentSlice) {
   }
 }
 
+// ─── Action detail helpers ───
+
+function renderActionTypeFields(at, i, s, pathDisplay, programArgs) {
+  if (at === "Script") {
+    return `
+      <span class="detail-label">Command</span>
+      <div>
+        <input type="text" id="cmd-${i}" value="${escAttr(s.action.command || "")}" placeholder="e.g. open -a Safari" />
+      </div>
+    `;
+  }
+  if (at === "Program") {
+    return `
+      <span class="detail-label">Program</span>
+      <div>
+        <div class="file-picker">
+          <span class="file-picker-path${pathDisplay ? "" : " empty"}" id="path-${i}">${pathDisplay || "Choose app..."}</span>
+          <button class="btn-browse" id="browse-${i}">Browse</button>
+        </div>
+      </div>
+      <span class="detail-label">Args</span>
+      <div>
+        <input type="text" id="args-${i}" value="${escAttr(programArgs)}" placeholder="Optional arguments" />
+      </div>
+    `;
+  }
+  return ``;
+}
+
+function renderSubmenuSection(at, i, s) {
+  if (at !== "Submenu") return ``;
+  return `
+    <div class="sub-action-section" id="sub-section-${i}">
+      <div class="sub-action-header">
+        <span class="sub-action-title">Sub-Actions</span>
+        <div class="sub-action-header-btns">
+          <select class="template-select" id="template-select-${i}">
+            <option value="">Use Template...</option>
+            ${SUBMENU_TEMPLATES.map((t, ti) => `<option value="${ti}">${t.name}</option>`).join('')}
+          </select>
+          <button class="btn-add-sub" id="add-sub-${i}">+ Add</button>
+        </div>
+      </div>
+      <div class="sub-action-list" id="sub-list-${i}">
+        ${renderSubActions(s.action.slices || [], i)}
+      </div>
+    </div>
+  `;
+}
+
+function renderActionDetail(s, i) {
+  const at = s.action.type;
+  const programPath = at === "Program" ? (s.action.path || "") : "";
+  const programArgs = at === "Program" ? (s.action.args || []).join(" ") : "";
+  const pathDisplay = programPath ? appName(programPath) : "";
+
+  return `
+    <div class="action-detail" data-detail="${i}">
+      <div class="detail-divider"></div>
+      <div class="detail-grid">
+        <span class="detail-label">Icon</span>
+        <div class="detail-input-row">
+          <button class="icon-btn" id="icon-btn-${i}">${resolveIcon(s.icon)}</button>
+          <input type="text" id="label-${i}" value="${escAttr(s.label)}" placeholder="Action name" />
+        </div>
+
+        <span class="detail-label">Type</span>
+        <div>
+          <select id="type-${i}">
+            <option value="Script"${at === "Script" ? " selected" : ""}>Script</option>
+            <option value="Program"${at === "Program" ? " selected" : ""}>Program</option>
+            <option value="Submenu"${at === "Submenu" ? " selected" : ""}>Submenu</option>
+          </select>
+        </div>
+
+        ${renderActionTypeFields(at, i, s, pathDisplay, programArgs)}
+      </div>
+      ${renderSubmenuSection(at, i, s)}
+      <div class="detail-actions">
+        <button class="btn-delete" id="delete-${i}">Remove</button>
+      </div>
+    </div>`;
+}
+
 // ─── Action cards ───
 
 function renderActionCard(s, i) {
@@ -382,70 +473,7 @@ function renderActionCard(s, i) {
       </div>`;
 
   if (active) {
-    const at = s.action.type;
-    const programPath = at === "Program" ? (s.action.path || "") : "";
-    const programArgs = at === "Program" ? (s.action.args || []).join(" ") : "";
-    const pathDisplay = programPath ? appName(programPath) : "";
-
-    html += `
-      <div class="action-detail" data-detail="${i}">
-        <div class="detail-divider"></div>
-        <div class="detail-grid">
-          <span class="detail-label">Icon</span>
-          <div class="detail-input-row">
-            <button class="icon-btn" id="icon-btn-${i}">${resolveIcon(s.icon)}</button>
-            <input type="text" id="label-${i}" value="${escAttr(s.label)}" placeholder="Action name" />
-          </div>
-
-          <span class="detail-label">Type</span>
-          <div>
-            <select id="type-${i}">
-              <option value="Script"${at === "Script" ? " selected" : ""}>Script</option>
-              <option value="Program"${at === "Program" ? " selected" : ""}>Program</option>
-              <option value="Submenu"${at === "Submenu" ? " selected" : ""}>Submenu</option>
-            </select>
-          </div>
-
-          ${at === "Script" ? `
-            <span class="detail-label">Command</span>
-            <div>
-              <input type="text" id="cmd-${i}" value="${escAttr(s.action.command || "")}" placeholder="e.g. open -a Safari" />
-            </div>
-          ` : at === "Program" ? `
-            <span class="detail-label">Program</span>
-            <div>
-              <div class="file-picker">
-                <span class="file-picker-path${pathDisplay ? "" : " empty"}" id="path-${i}">${pathDisplay || "Choose app..."}</span>
-                <button class="btn-browse" id="browse-${i}">Browse</button>
-              </div>
-            </div>
-            <span class="detail-label">Args</span>
-            <div>
-              <input type="text" id="args-${i}" value="${escAttr(programArgs)}" placeholder="Optional arguments" />
-            </div>
-          ` : ``}
-        </div>
-        ${at === "Submenu" ? `
-          <div class="sub-action-section" id="sub-section-${i}">
-            <div class="sub-action-header">
-              <span class="sub-action-title">Sub-Actions</span>
-              <div class="sub-action-header-btns">
-                <select class="template-select" id="template-select-${i}">
-                  <option value="">Use Template...</option>
-                  ${SUBMENU_TEMPLATES.map((t, ti) => `<option value="${ti}">${t.name}</option>`).join('')}
-                </select>
-                <button class="btn-add-sub" id="add-sub-${i}">+ Add</button>
-              </div>
-            </div>
-            <div class="sub-action-list" id="sub-list-${i}">
-              ${renderSubActions(s.action.slices || [], i)}
-            </div>
-          </div>
-        ` : ``}
-        <div class="detail-actions">
-          <button class="btn-delete" id="delete-${i}">Remove</button>
-        </div>
-      </div>`;
+    html += renderActionDetail(s, i);
   }
 
   html += `</div>`;
@@ -513,7 +541,7 @@ function render() {
 
         <div class="right-header">
           <span class="right-title">${escAttr(profile.name || 'Untitled')}</span>
-          <span class="slice-count">${n} item${n !== 1 ? "s" : ""}</span>
+          <span class="slice-count">${n} item${n === 1 ? "" : "s"}</span>
           ${config.profiles.length > 1 ? `<button class="btn-delete-profile" id="delete-profile-btn" title="Delete this profile">🗑</button>` : ''}
         </div>
 
@@ -567,7 +595,7 @@ function bindEvents() {
   // Telemetry toggle
   document.getElementById("telemetry-checkbox").addEventListener("change", (e) => {
     sentryEnabled = e.target.checked;
-    window.api.setTelemetryConsent(sentryEnabled);
+    globalThis.api.setTelemetryConsent(sentryEnabled);
   });
 
   // Profile tabs
@@ -582,11 +610,9 @@ function bindEvents() {
     });
   });
 
-  const addProfileBtn = document.getElementById("add-profile-btn");
-  if (addProfileBtn) addProfileBtn.addEventListener("click", addProfile);
+  document.getElementById("add-profile-btn")?.addEventListener("click", addProfile);
 
-  const deleteProfileBtn = document.getElementById("delete-profile-btn");
-  if (deleteProfileBtn) deleteProfileBtn.addEventListener("click", deleteProfile);
+  document.getElementById("delete-profile-btn")?.addEventListener("click", deleteProfile);
 
   // Delete profile from tab × button
   document.querySelectorAll("[data-profile-delete]").forEach((btn) => {
@@ -629,8 +655,7 @@ function bindEvents() {
       render();
       if (expandedSlice >= 0) {
         requestAnimationFrame(() => {
-          const card = document.querySelector(`.action-card[data-card="${expandedSlice}"]`);
-          if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          document.querySelector(`.action-card[data-card="${expandedSlice}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         });
       }
     });
@@ -688,6 +713,32 @@ function bindEvents() {
   });
 }
 
+async function handleBrowseClick(s, idx) {
+  const selected = await globalThis.api.openFileDialog();
+  if (selected) {
+    s.action.path = selected;
+    const name = appName(selected);
+    const display = document.getElementById(`path-${idx}`);
+    if (display) { display.textContent = name; display.classList.remove("empty"); }
+    const desc = document.querySelector(`.action-card[data-card="${idx}"] .action-card-desc`);
+    if (desc) desc.textContent = name;
+
+    // Auto-extract native icon from the executable
+    const iconDataUrl = await globalThis.api.getFileIcon(selected);
+    if (iconDataUrl) {
+      s.customIcon = iconDataUrl;
+      // Update icon in all places
+      const imgHtml = `<img src="${iconDataUrl}" style="width:20px;height:20px;" />`;
+      const cardIcon = document.querySelector(`.action-card[data-card="${idx}"] .action-card-icon`);
+      if (cardIcon) cardIcon.innerHTML = imgHtml;
+      const iconEl = document.getElementById(`icon-btn-${idx}`);
+      if (iconEl) iconEl.innerHTML = imgHtml;
+      const previewNode = document.querySelector(`.ring-preview-node[data-preview="${idx}"] .preview-icon`);
+      if (previewNode) previewNode.innerHTML = imgHtml;
+    }
+  }
+}
+
 function bindDetail(idx) {
   const profile = activeProfile();
   if (!profile) return;
@@ -731,31 +782,9 @@ function bindDetail(idx) {
 
   const browseBtn = document.getElementById(`browse-${idx}`);
   if (browseBtn) {
-    browseBtn.addEventListener("click", async (e) => {
+    browseBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const selected = await window.api.openFileDialog();
-      if (selected) {
-        s.action.path = selected;
-        const name = appName(selected);
-        const display = document.getElementById(`path-${idx}`);
-        if (display) { display.textContent = name; display.classList.remove("empty"); }
-        const desc = document.querySelector(`.action-card[data-card="${idx}"] .action-card-desc`);
-        if (desc) desc.textContent = name;
-
-        // Auto-extract native icon from the executable
-        const iconDataUrl = await window.api.getFileIcon(selected);
-        if (iconDataUrl) {
-          s.customIcon = iconDataUrl;
-          // Update icon in all places
-          const imgHtml = `<img src="${iconDataUrl}" style="width:20px;height:20px;" />`;
-          const cardIcon = document.querySelector(`.action-card[data-card="${idx}"] .action-card-icon`);
-          if (cardIcon) cardIcon.innerHTML = imgHtml;
-          const iconEl = document.getElementById(`icon-btn-${idx}`);
-          if (iconEl) iconEl.innerHTML = imgHtml;
-          const previewNode = document.querySelector(`.ring-preview-node[data-preview="${idx}"] .preview-icon`);
-          if (previewNode) previewNode.innerHTML = imgHtml;
-        }
-      }
+      handleBrowseClick(s, idx);
     });
   }
 
@@ -791,13 +820,29 @@ function bindDetail(idx) {
     bindSubActionEvents(idx, s);
   }
 
-  const detail = document.querySelector(`.action-detail[data-detail="${idx}"]`);
-  if (detail) {
-    detail.addEventListener("click", (e) => e.stopPropagation());
-  }
+  document.querySelector(`.action-detail[data-detail="${idx}"]`)?.addEventListener("click", (e) => e.stopPropagation());
 }
 
 // ─── Icon Picker ───
+
+function renderIconButtons(icons, currentIcon) {
+  let html = "";
+  for (const name of icons) {
+    const sel = name === currentIcon ? " selected" : "";
+    html += `<button class="icon-picker-cell${sel}" data-icon="${name}" title="${name}">${resolveIcon(name)}</button>`;
+  }
+  return html;
+}
+
+function renderExtraIcons(q, currentIcon) {
+  const catIcons = new Set(ICON_CATEGORIES.flatMap(c => c.icons));
+  const extras = Object.keys(ICON_MAP).filter(n => !catIcons.has(n) && n.includes(q));
+  if (extras.length === 0) return { html: "", found: false };
+  let html = `<div class="icon-picker-category">Other</div><div class="icon-picker-grid">`;
+  html += renderIconButtons(extras, currentIcon);
+  html += `</div>`;
+  return { html, found: true };
+}
 
 function buildPickerContent(body, currentIcon, query) {
   const q = (query || "").toLowerCase().trim();
@@ -810,25 +855,16 @@ function buildPickerContent(body, currentIcon, query) {
     hasResults = true;
 
     html += `<div class="icon-picker-category">${cat.name}</div><div class="icon-picker-grid">`;
-    for (const name of matched) {
-      const sel = name === currentIcon ? " selected" : "";
-      html += `<button class="icon-picker-cell${sel}" data-icon="${name}" title="${name}">${resolveIcon(name)}</button>`;
-    }
+    html += renderIconButtons(matched, currentIcon);
     html += `</div>`;
   }
 
   // Also search all icons not in categories
   if (q) {
-    const catIcons = new Set(ICON_CATEGORIES.flatMap(c => c.icons));
-    const extras = Object.keys(ICON_MAP).filter(n => !catIcons.has(n) && n.includes(q));
-    if (extras.length > 0) {
+    const extra = renderExtraIcons(q, currentIcon);
+    if (extra.found) {
       hasResults = true;
-      html += `<div class="icon-picker-category">Other</div><div class="icon-picker-grid">`;
-      for (const name of extras) {
-        const sel = name === currentIcon ? " selected" : "";
-        html += `<button class="icon-picker-cell${sel}" data-icon="${name}" title="${name}">${resolveIcon(name)}</button>`;
-      }
-      html += `</div>`;
+      html += extra.html;
     }
   }
 
@@ -900,8 +936,7 @@ function openIconPicker(idx) {
 
   // Scroll to selected
   requestAnimationFrame(() => {
-    const sel = body.querySelector(".icon-picker-cell.selected");
-    if (sel) sel.scrollIntoView({ block: "center", behavior: "instant" });
+    body.querySelector(".icon-picker-cell.selected")?.scrollIntoView({ block: "center", behavior: "instant" });
     search.focus();
   });
 
@@ -957,7 +992,7 @@ function openSubIconPicker(parentIdx, subIdx) {
   const profile = activeProfile();
   if (!profile) return;
   const parentSlice = profile.slices[parentIdx];
-  if (!parentSlice || !parentSlice.action.slices) return;
+  if (!parentSlice?.action?.slices) return;
   const sub = parentSlice.action.slices[subIdx];
   if (!sub) return;
   const currentIcon = sub.icon;
@@ -1006,8 +1041,7 @@ function openSubIconPicker(parentIdx, subIdx) {
   buildPickerContent(body, currentIcon, "");
 
   requestAnimationFrame(() => {
-    const sel = body.querySelector(".icon-picker-cell.selected");
-    if (sel) sel.scrollIntoView({ block: "center", behavior: "instant" });
+    body.querySelector(".icon-picker-cell.selected")?.scrollIntoView({ block: "center", behavior: "instant" });
     search.focus();
   });
 
@@ -1182,7 +1216,7 @@ function startRecording() {
 
 async function saveConfig() {
   try {
-    await window.api.saveConfig(config);
+    await globalThis.api.saveConfig(config);
     const btn = document.getElementById("save-btn");
     const status = document.getElementById("save-status");
     btn.textContent = "Saved";
