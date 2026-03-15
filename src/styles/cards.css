@@ -1,0 +1,366 @@
+/* Action list */
+
+.action-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(61, 42, 124, 0.3) transparent;
+}
+
+.action-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.action-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.action-list::-webkit-scrollbar-thumb {
+  background: rgba(61, 42, 124, 0.3);
+  border-radius: 4px;
+}
+
+/* Individual action card */
+
+.action-card {
+  background: var(--bg-grouped);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.action-card:hover {
+  border-color: rgba(61, 42, 124, 0.25);
+}
+
+.action-card.active {
+  border-color: rgba(10, 132, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.08),
+              0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.action-card-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-height: 50px;
+}
+
+.action-card-header:hover {
+  background: rgba(61, 42, 124, 0.08);
+}
+
+.action-card-index {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(45, 27, 105, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.action-card.active .action-card-index {
+  background: rgba(10, 132, 255, 0.15);
+  color: var(--accent);
+}
+
+.action-card-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+.action-card-header:hover .action-card-icon {
+  transform: scale(1.08);
+}
+
+.action-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-card-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.action-card-chevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  transition: transform 0.25s cubic-bezier(0.22, 0.68, 0, 1),
+              color 0.2s;
+}
+
+.drag-handle {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+  padding: 2px 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.action-card-header:hover .drag-handle {
+  opacity: 1;
+}
+
+.action-card-header:active .drag-handle {
+  cursor: grabbing;
+}
+
+.action-card.dragging {
+  opacity: 0.4;
+}
+
+.action-card.drag-over {
+  border-color: rgba(10, 132, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.2);
+}
+
+.action-card.active .action-card-chevron {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+/* Detail editor inside card */
+
+.action-detail {
+  padding: 0 14px 14px;
+  animation: detail-in 0.25s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+@keyframes detail-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-divider {
+  height: 1px;
+  background: var(--separator);
+  margin-bottom: 12px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.detail-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-align: right;
+}
+
+.detail-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-grid input[type="text"],
+.detail-grid select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid rgba(139, 120, 220, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.detail-grid input[type="text"]:focus,
+.detail-grid select:focus {
+  border-color: rgba(10, 132, 255, 0.4);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.08);
+}
+
+.detail-grid input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.detail-grid select {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M.5.5 4 4 7.5.5' stroke='rgba(200,185,245,0.4)' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.detail-grid select option {
+  background: var(--bg-grouped);
+}
+
+/* Icon button in detail */
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid rgba(139, 120, 220, 0.1);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.12s, border-color 0.15s;
+}
+
+.icon-btn:hover {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.2);
+  transform: scale(1.06);
+}
+
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* File picker */
+
+.file-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.file-picker-path {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid rgba(139, 120, 220, 0.1);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.file-picker-path.empty {
+  color: var(--text-tertiary);
+}
+
+.btn-browse {
+  background: var(--bg-input);
+  border: 1px solid rgba(139, 120, 220, 0.1);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-browse:hover {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.2);
+}
+
+/* Detail actions row */
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: background 0.12s, opacity 0.12s;
+}
+
+.btn-delete:hover {
+  background: rgba(255, 107, 107, 0.08);
+}
+
+/* Add action button */
+
+.add-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px dashed rgba(61, 42, 124, 0.25);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.2s;
+  width: 100%;
+  font-family: inherit;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.add-action-btn:hover {
+  background: rgba(10, 132, 255, 0.04);
+  border-color: rgba(10, 132, 255, 0.2);
+  color: var(--accent);
+}
+
+.add-action-btn .plus {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--accent);
+}

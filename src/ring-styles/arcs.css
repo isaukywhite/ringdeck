@@ -1,0 +1,57 @@
+/* === Outer Arc (SVG) === */
+
+.ring-arc-svg {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ring-arc-path {
+  fill: none;
+  stroke: url(#arcGradient);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(10, 132, 255, 0.7))
+          drop-shadow(0 0 3px rgba(45, 27, 105, 0.5));
+  transition: opacity 0.25s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+.ring-arc-path.active {
+  opacity: 1;
+  animation: arc-draw 0.4s cubic-bezier(0.22, 0.68, 0, 1) forwards,
+             arc-breathe 2.2s ease-in-out 0.4s infinite;
+}
+
+@keyframes arc-draw {
+  0%   { stroke-dashoffset: var(--arc-len); opacity: 0.3; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes arc-breathe {
+  0%, 100% { opacity: 0.75; stroke-width: 3; }
+  50%      { opacity: 1; stroke-width: 4; }
+}
+
+.ring-arc-glow {
+  fill: none;
+  stroke: rgba(45, 27, 105, 0.35);
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: blur(6px);
+  transition: opacity 0.25s cubic-bezier(0.22, 0.68, 0, 1);
+}
+
+.ring-arc-glow.active {
+  opacity: 1;
+  animation: glow-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; stroke-width: 14; }
+  50%      { opacity: 0.8; stroke-width: 18; }
+}

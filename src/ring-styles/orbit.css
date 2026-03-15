@@ -1,0 +1,30 @@
+/* === Orbit ring === */
+
+.ring-orbit {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ring-orbit-circle {
+  fill: none;
+  stroke: rgba(61, 42, 124, 0.15);
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+  transition: stroke 0.3s, stroke-width 0.3s;
+  animation: orbit-rotate 30s linear infinite;
+  transform-origin: 200px 200px;
+}
+
+.ring-orbit-circle.active {
+  stroke: rgba(10, 132, 255, 0.2);
+  stroke-width: 1.5;
+}
+
+@keyframes orbit-rotate {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

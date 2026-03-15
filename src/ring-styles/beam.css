@@ -1,0 +1,41 @@
+/* === Selection beam === */
+
+.ring-beam {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ring-beam-line {
+  stroke: url(#beamGradient);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ring-beam-line.active {
+  opacity: 1;
+  animation: beam-in 0.3s cubic-bezier(0.22, 0.68, 0, 1) forwards;
+}
+
+@keyframes beam-in {
+  0%   { opacity: 0; stroke-dashoffset: var(--beam-len); }
+  100% { opacity: 1; stroke-dashoffset: 0; }
+}
+
+.ring-beam-glow {
+  stroke: rgba(45, 27, 105, 0.2);
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: blur(8px);
+  transition: opacity 0.2s;
+}
+
+.ring-beam-glow.active {
+  opacity: 1;
+}
