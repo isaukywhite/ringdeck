@@ -10,10 +10,10 @@ const {
   nativeImage,
   net,
 } = require("electron");
-const path = require("path");
-const fs = require("fs");
-const crypto = require("crypto");
-const os = require("os");
+const path = require("node:path");
+const fs = require("node:fs");
+const crypto = require("node:crypto");
+const os = require("node:os");
 
 // ─── Error Reporting (GlitchTip via Sentry API) ───
 
@@ -39,7 +39,7 @@ let sentryEnabled = getTelemetryConsent() === true;
 function captureException(err, extra) {
   if (!sentryEnabled) return;
   const payload = {
-    event_id: crypto.randomUUID().replace(/-/g, ""),
+    event_id: crypto.randomUUID().replaceAll("-", ""),
     timestamp: new Date().toISOString(),
     platform: "node",
     level: "error",
@@ -141,7 +141,7 @@ function getDefaultConfig() {
         icon: "globe",
         action: {
           type: "Program",
-          path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          path: String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`,
           args: [],
         },
       },
@@ -245,7 +245,7 @@ function saveConfigToDisk(cfg) {
 
 // ─── Actions ───
 
-const { spawn } = require("child_process");
+const { spawn } = require("node:child_process");
 const { shell } = require("electron");
 
 function executeAction(action) {
@@ -262,7 +262,7 @@ function executeAction(action) {
           console.log("[RingDeck] PS raw script:", raw.substring(0, 200));
           console.log("[RingDeck] PS temp file:", tmpFile);
           fs.writeFileSync(tmpFile, raw, "utf8");
-          child = spawn("powershell.exe", [
+          child = spawn("powershell.exe", [ // NOSONAR — user-configured action
             "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", tmpFile
           ], {
             detached: true, stdio: ["ignore", "pipe", "pipe"], shell: false, windowsHide: true
@@ -271,15 +271,15 @@ function executeAction(action) {
           child.stderr.on("data", (d) => console.error("[RingDeck] PS stderr:", d.toString()));
           child.on("close", (code) => {
             console.log("[RingDeck] PS exit code:", code);
-            try { fs.unlinkSync(tmpFile); } catch(e) {}
+            try { fs.unlinkSync(tmpFile); } catch { /* temp file cleanup */ }
           });
         } else {
-          child = spawn("cmd", ["/c", action.command], {
+          child = spawn("cmd", ["/c", action.command], { // NOSONAR — user-configured action
             detached: true, stdio: "ignore", shell: false, windowsHide: true
           });
         }
       } else {
-        child = spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" });
+        child = spawn("sh", ["-c", action.command], { detached: true, stdio: "ignore" }); // NOSONAR — user-configured action
       }
       child.on("error", (err) => { captureException(err); console.error("Script spawn error:", err); });
       child.unref();
@@ -292,7 +292,7 @@ function executeAction(action) {
         if (action.args?.length) {
           args.push("--args", ...action.args);
         }
-        const child = spawn("open", args, { detached: true, stdio: "ignore" });
+        const child = spawn("open", args, { detached: true, stdio: "ignore" }); // NOSONAR — user-configured action
         child.on("error", (err) => { captureException(err); console.error("Program spawn error:", err); });
         child.unref();
       } else {
@@ -410,7 +410,7 @@ function registerAllShortcuts() {
     if (!profile.shortcut) continue;
 
     // Map Super to Meta for Electron
-    const mapped = profile.shortcut.replace(/Super/g, "Meta");
+    const mapped = profile.shortcut.replaceAll("Super", "Meta");
     const idx = i; // capture for closure
 
     try {
@@ -531,7 +531,7 @@ ipcMain.handle("execute_submenu_action", (_e, parentIndex, childIndex) => {
   const profile = config.profiles[activeProfileIndex];
   if (!profile) throw new Error("Invalid profile index");
   const parentSlice = profile.slices[parentIndex];
-  if (!parentSlice || parentSlice.action.type !== "Submenu") throw new Error("Invalid parent slice");
+  if (!parentSlice || parentSlice.action?.type !== "Submenu") throw new Error("Invalid parent slice");
   const childSlice = parentSlice.action.slices[childIndex];
   if (!childSlice) throw new Error("Invalid child slice index");
   executeAction(childSlice.action);
@@ -547,7 +547,7 @@ ipcMain.handle("open_file_dialog", async () => {
       defaultPath = "/Applications";
       filters = [{ name: "Applications", extensions: ["app"] }];
     } else if (platform === "win32") {
-      defaultPath = "C:\\Program Files";
+      defaultPath = String.raw`C:\Program Files`;
       filters = [
         { name: "Executables", extensions: ["exe", "cmd", "bat", "lnk"] },
         { name: "All Files", extensions: ["*"] },
@@ -577,18 +577,18 @@ ipcMain.handle("open_file_dialog", async () => {
 
 const gotLock = app.requestSingleInstanceLock();
 
-if (!gotLock) {
-  app.exit(0);
-} else {
+if (gotLock) {
   app.on("second-instance", () => {
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
     }
   });
+} else {
+  app.exit(0);
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(async () => { // NOSONAR
   // Set dock icon
   const appIcon = nativeImage.createFromPath(
     path.join(__dirname, "..", "logo_ring_2_1.png")
