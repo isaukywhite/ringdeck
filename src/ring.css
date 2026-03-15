@@ -7,14 +7,16 @@
 html, body {
   background: transparent;
   overflow: hidden;
-  width: 400px;
-  height: 400px;
+  width: 550px;
+  height: 550px;
 }
 
 #ring {
   position: relative;
   width: 400px;
   height: 400px;
+  margin: 75px auto;
+  overflow: visible;
 }
 
 /* === Entrance — hidden by default === */
