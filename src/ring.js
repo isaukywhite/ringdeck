@@ -1,6 +1,7 @@
 import {
   setSlices, getSlices, setHoveredIndex,
   setActiveSubmenu, setSubmenuHoveredIndex,
+  getParticleAnim, setParticleAnim,
 } from './ring/state.js';
 import { buildRing } from './ring/ring-render.js';
 import { setupInteraction } from './ring/interaction.js';
@@ -87,13 +88,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const ring = document.getElementById("ring");
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
+    if (document.hidden) {
+      // Pause particles when ring is hidden (save CPU)
+      const anim = getParticleAnim();
+      if (anim) {
+        cancelAnimationFrame(anim);
+        setParticleAnim(null);
+      }
+    } else {
       setHoveredIndex(-1);
       setActiveSubmenu(-1);
       setSubmenuHoveredIndex(-1);
       ring.classList.remove("appear");
       void ring.offsetHeight;
       ring.classList.add("appear");
+      // Restart particles
+      startParticles();
     }
   });
 });

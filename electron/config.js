@@ -139,9 +139,14 @@ function loadConfig() {
   return structuredClone(defaults);
 }
 
-function saveConfigToDisk(cfg) {
-  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+async function saveConfigToDisk(cfg) {
+  try {
+    fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+    await fs.promises.writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  } catch (e) {
+    captureException(e);
+    console.error("[RingDeck] Config save error:", e);
+  }
 }
 
 // Initialize config
