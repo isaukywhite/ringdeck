@@ -8,12 +8,18 @@
   "scripts": {
     "dev": "vite build && electron .",
     "build": "vite build && electron-builder",
-    "pack": "vite build && electron-builder --dir"
+    "pack": "vite build && electron-builder --dir",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
     "electron": "^35",
     "electron-builder": "^26",
-    "vite": "^6"
+    "jsdom": "^29.0.0",
+    "vite": "^6",
+    "vitest": "^4.1.0"
   },
   "build": {
     "appId": "com.ringdeck.app",

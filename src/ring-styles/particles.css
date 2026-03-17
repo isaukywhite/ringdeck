@@ -1,0 +1,10 @@
+/* === Particle ring (canvas) === */
+
+.ring-particles {
+  position: absolute;
+  inset: 0;
+  width: 400px;
+  height: 400px;
+  pointer-events: none;
+  z-index: 1;
+}
