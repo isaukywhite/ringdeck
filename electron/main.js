@@ -121,6 +121,14 @@ process.on("unhandledRejection", (reason) => {
 
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 
+const DEFAULT_SETTINGS = {
+  ringColor: '#0A84FF',
+  ringSize: 'medium',
+  closeToTray: true,
+};
+
+const RING_SCALE = { tiny: 0.45, mini: 0.6, small: 0.75, medium: 1, large: 1.3 };
+
 function getDefaultConfig() {
   const platform = process.platform;
   let slices;
@@ -220,6 +228,11 @@ function migrateConfig(cfg) {
     saveConfigToDisk(migrated);
     return migrated;
   }
+  // Migrate: add settings if missing
+  if (!cfg.settings) {
+    cfg.settings = { ...DEFAULT_SETTINGS };
+    saveConfigToDisk(cfg);
+  }
   return cfg;
 }
 
@@ -241,6 +254,16 @@ function loadConfig() {
 function saveConfigToDisk(cfg) {
   fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+}
+
+function getRingColor() {
+  return (config.settings && config.settings.ringColor) || "#0A84FF";
+}
+
+function getRingWindowSize() {
+  const size = (config.settings && config.settings.ringSize) || "medium";
+  const scale = RING_SCALE[size] || 1;
+  return Math.round(550 * scale);
 }
 
 // ─── Actions ───
@@ -316,6 +339,8 @@ function executeAction(action) {
 
 let mainWindow = null;
 let ringWindow = null;
+let ringReady = false;
+let isQuitting = false;
 let tray = null;
 
 function createMainWindow() {
@@ -334,8 +359,20 @@ function createMainWindow() {
   mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
 
   mainWindow.on("close", (e) => {
-    e.preventDefault();
-    mainWindow.hide();
+    if (isQuitting) return; // Let it close during app.quit()
+
+    const closeToTray = config.settings?.closeToTray !== false;
+    if (closeToTray) {
+      e.preventDefault();
+      mainWindow.hide();
+    } else {
+      // closeToTray is OFF — quit the entire app
+      isQuitting = true;
+      if (tray) { tray.destroy(); tray = null; }
+      if (ringWindow && !ringWindow.isDestroyed()) ringWindow.destroy();
+      globalShortcut.unregisterAll();
+      app.quit();
+    }
   });
 }
 
@@ -360,9 +397,26 @@ function createRingWindow() {
 
   ringWindow.loadFile(path.join(__dirname, "..", "dist", "ring.html"));
 
+  ringWindow.webContents.on("did-finish-load", () => {
+    ringReady = true;
+    // Pre-load slices so ring is ready before first activation
+    sendRingData(activeProfileIndex);
+  });
+
   ringWindow.on("blur", () => {
     if (!ringWindow.isDestroyed()) ringWindow.hide();
   });
+}
+
+function sendRingData(profileIndex) {
+  const profile = config.profiles[profileIndex];
+  if (profile && ringWindow && !ringWindow.isDestroyed()) {
+    ringWindow.webContents.send("ring-data", {
+      slices: profile.slices,
+      color: getRingColor(),
+      size: (config.settings && config.settings.ringSize) || "medium",
+    });
+  }
 }
 
 function showRingAtCursor(profileIndex) {
@@ -375,20 +429,16 @@ function showRingAtCursor(profileIndex) {
   if (!ringWindow || ringWindow.isDestroyed()) {
     createRingWindow();
   }
+
+  const winSize = getRingWindowSize();
+  const half = Math.round(winSize / 2);
   const cursor = screen.getCursorScreenPoint();
-  const x = Math.round(cursor.x - 275);
-  const y = Math.round(cursor.y - 275);
-  ringWindow.setBounds({ x, y, width: 550, height: 550 });
+  const x = Math.round(cursor.x - half);
+  const y = Math.round(cursor.y - half);
+  ringWindow.setBounds({ x, y, width: winSize, height: winSize });
 
-  // Send active profile slices to the ring window
-  const profile = config.profiles[profileIndex];
-  if (profile) {
-    const json = JSON.stringify(profile.slices);
-    ringWindow.webContents.executeJavaScript(
-      `window.__updateSlices(${json})`
-    );
-  }
-
+  // Send latest slices and show
+  sendRingData(profileIndex);
   ringWindow.show();
   ringWindow.focus();
 }
@@ -442,7 +492,11 @@ function setupTray() {
     {
       label: "Quit",
       click: () => {
-        mainWindow.destroy();
+        isQuitting = true;
+        if (tray) { tray.destroy(); tray = null; }
+        if (ringWindow && !ringWindow.isDestroyed()) ringWindow.destroy();
+        globalShortcut.unregisterAll();
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
         app.quit();
       },
     },
@@ -456,6 +510,8 @@ function setupTray() {
 }
 
 // ─── IPC ───
+
+ipcMain.handle("get_app_version", () => app.getVersion());
 
 ipcMain.handle("get_telemetry_consent", () => sentryEnabled);
 
@@ -473,7 +529,53 @@ ipcMain.handle("get_active_profile", () => {
   };
 });
 
+ipcMain.handle("get_ring_color", () => getRingColor());
+
+ipcMain.handle("get_ring_size", () => {
+  return (config.settings && config.settings.ringSize) || "medium";
+});
+
+ipcMain.handle("set_ring_color", (_e, hex) => {
+  if (!config.settings) config.settings = {};
+  config.settings.ringColor = hex;
+  saveConfigToDisk(config);
+});
+
+ipcMain.handle("set_ring_size", (_e, size) => {
+  if (!config.settings) config.settings = {};
+  config.settings.ringSize = size;
+  saveConfigToDisk(config);
+});
+
+ipcMain.handle("save_settings", (_e, settings) => {
+  const prevSettings = config.settings || {};
+  config.settings = settings;
+  saveConfigToDisk(config);
+
+  // Apply launch at startup
+  if (settings.launchAtStartup !== prevSettings.launchAtStartup) {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: !!settings.launchAtStartup,
+        name: "RingDeck",
+      });
+    } catch (e) {
+      captureException(e);
+      console.error("[RingDeck] Failed to set login item:", e);
+    }
+  }
+
+  // Apply error reporting
+  if (settings.sendErrorReports !== prevSettings.sendErrorReports) {
+    const enabled = !!settings.sendErrorReports;
+    setSentryEnabled(enabled);
+    saveTelemetryConsent(enabled);
+  }
+});
+
 ipcMain.handle("save_config", (_e, newConfig) => {
+  // Preserve settings from main process (renderer may have stale copy)
+  newConfig.settings = config.settings;
   saveConfigToDisk(newConfig);
   config = newConfig;
 
@@ -481,11 +583,8 @@ ipcMain.handle("save_config", (_e, newConfig) => {
   registerAllShortcuts();
 
   // Update ring window live with active profile
-  if (ringWindow && config.profiles[activeProfileIndex]) {
-    const json = JSON.stringify(config.profiles[activeProfileIndex].slices);
-    ringWindow.webContents.executeJavaScript(
-      `window.__updateSlices(${json})`
-    );
+  if (ringReady) {
+    sendRingData(activeProfileIndex);
   }
 });
 
@@ -502,11 +601,31 @@ ipcMain.handle("hide_ring", () => {
 });
 
 ipcMain.handle("get_file_icon", async (_e, filePath) => {
-  // app.getFileIcon crashes on macOS 26 + Electron 35 (native V8 SIGTRAP)
-  // Use nativeImage.createFromPath for .app bundles on macOS instead
   try {
-    if (process.platform === "darwin" && filePath.endsWith(".app")) {
-      const icnsPath = path.join(filePath, "Contents", "Resources");
+    let resolvedPath = filePath;
+
+    // Resolve .lnk shortcuts on Windows to their target exe
+    if (process.platform === "win32" && filePath.toLowerCase().endsWith(".lnk")) {
+      try {
+        const { execSync } = require("node:child_process");
+        const ps = `(New-Object -ComObject WScript.Shell).CreateShortcut('${filePath.replace(/'/g, "''")}').TargetPath`;
+        const target = execSync(`powershell -NoProfile -Command "${ps}"`, {
+          encoding: "utf8",
+          windowsHide: true,
+          timeout: 5000,
+        }).trim();
+        if (target && fs.existsSync(target)) {
+          resolvedPath = target;
+          console.log("[RingDeck] Resolved .lnk to:", resolvedPath);
+        }
+      } catch (e) {
+        console.warn("[RingDeck] .lnk resolution failed, using original path:", e.message);
+      }
+    }
+
+    // macOS: .app bundles — extract .icns manually (app.getFileIcon can crash)
+    if (process.platform === "darwin" && resolvedPath.endsWith(".app")) {
+      const icnsPath = path.join(resolvedPath, "Contents", "Resources");
       if (fs.existsSync(icnsPath)) {
         const files = fs.readdirSync(icnsPath);
         const icns = files.find((f) => f.endsWith(".icns"));
@@ -519,10 +638,23 @@ ipcMain.handle("get_file_icon", async (_e, filePath) => {
       }
       return null;
     }
-    const icon = await app.getFileIcon(filePath, { size: "large" });
-    return icon.toDataURL();
+
+    // All platforms: use Electron's built-in icon extraction
+    const icon = await app.getFileIcon(resolvedPath, { size: "large" });
+    if (icon && !icon.isEmpty()) {
+      const dataUrl = icon.toDataURL();
+      // Validate that the data URL is actually an image
+      if (dataUrl && dataUrl.startsWith("data:image/")) {
+        console.log("[RingDeck] Icon extracted for:", path.basename(resolvedPath), "size:", icon.getSize());
+        return dataUrl;
+      }
+    }
+
+    console.warn("[RingDeck] Icon extraction returned empty for:", resolvedPath);
+    return null;
   } catch (e) {
     captureException(e, { filePath });
+    console.error("[RingDeck] get_file_icon error:", e.message);
     return null;
   }
 });

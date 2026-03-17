@@ -1,4 +1,5 @@
 import { resolveIcon } from './icons.js';
+import { generateRingPalette } from './color-engine.js';
 
 const RING_SIZE = 400;
 const CENTER = RING_SIZE / 2;
@@ -13,8 +14,37 @@ function arcSpread(n) {
 }
 
 let slices = [];
+let prevSliceCount = -1;
 let hoveredIndex = -1;
 let particleAnim = null;
+let currentPalette = null;
+
+function applyRingColor(hex) {
+  const p = generateRingPalette(hex);
+  currentPalette = p;
+
+  const s = document.documentElement.style;
+  s.setProperty('--ring-accent', p.accent);
+  s.setProperty('--ring-accent-secondary', p.accentSecondary);
+  s.setProperty('--ring-purple-deep', p.purpleDeep);
+  s.setProperty('--ring-purple-mid', p.purpleMid);
+  s.setProperty('--ring-purple-dark', p.purpleDark);
+  s.setProperty('--glow-rgb', p.glowRgb);
+  s.setProperty('--glow-secondary-rgb', p.glowSecondaryRgb);
+  s.setProperty('--purple-rgb', p.purpleRgb);
+  s.setProperty('--purple-mid-rgb', p.purpleMidRgb);
+  s.setProperty('--purple-dark-rgb', p.purpleDarkRgb);
+  s.setProperty('--ring-node-bg', p.nodeBg);
+  s.setProperty('--ring-node-bg-hover', p.nodeBgHover);
+  s.setProperty('--ring-center-gradient', p.centerGradient);
+  s.setProperty('--ring-center-active', p.centerActive);
+}
+
+function applyRingSize(size) {
+  const scales = { tiny: 0.45, mini: 0.6, small: 0.75, medium: 1, large: 1.3 };
+  const scale = scales[size] || 1;
+  document.documentElement.style.setProperty('--ring-scale', scale);
+}
 
 // ─── Submenu state ───
 let activeSubmenu = -1;      // index of parent slice whose submenu is open (-1 = none)
@@ -52,19 +82,56 @@ function subNodePosition(childIndex, childCount, parentIndex, parentCount) {
 }
 
 async function init() {
-  const { profile } = await globalThis.api.getActiveProfile();
-  slices = profile.slices;
-  buildRing();
+  // Apply color and size from IPC (fallback for first load)
+  try {
+    const hex = await globalThis.api.getRingColor();
+    if (hex) applyRingColor(hex);
+    const size = await globalThis.api.getRingSize();
+    if (size) applyRingSize(size);
+  } catch (_) { /* preload may not be ready yet */ }
+
+  // Only load slices if ring-data IPC hasn't already populated them
+  if (slices.length === 0) {
+    try {
+      const { profile } = await globalThis.api.getActiveProfile();
+      if (profile && profile.slices) slices = profile.slices;
+    } catch (_) { /* ignore */ }
+    buildRing();
+  }
+
   setupInteraction();
-  startParticles();
+  if (prevSliceCount !== slices.length) {
+    startParticles();
+    prevSliceCount = slices.length;
+  }
 }
 
-globalThis.__updateSlices = function (newSlices) {
-  slices = newSlices;
+// Listen for combined ring data from main process (color + size + slices in one IPC)
+globalThis.api.onRingData((data) => {
+  // Apply color and size without extra IPC roundtrips
+  if (data.color) applyRingColor(data.color);
+  if (data.size) applyRingSize(data.size);
+
+  slices = data.slices;
   activeSubmenu = -1;
   submenuHoveredIndex = -1;
+  hoveredIndex = -1;
   buildRing();
-};
+
+  // Only recreate particles if slice count changed
+  if (prevSliceCount !== slices.length) {
+    startParticles();
+    prevSliceCount = slices.length;
+  }
+
+  // Trigger appear animation so nodes become visible (they start at opacity: 0)
+  const ring = document.getElementById("ring");
+  if (ring) {
+    ring.classList.remove("appear");
+    void ring.offsetHeight;
+    ring.classList.add("appear");
+  }
+});
 
 function describeArc(cx, cy, r, startAngle, endAngle) {
   const x1 = cx + r * Math.cos(startAngle);
@@ -87,6 +154,7 @@ function describeSector(cx, cy, r, startAngle, endAngle) {
 function buildRing() {
   const container = document.getElementById("ring");
   const n = slices.length;
+  const p = currentPalette || generateRingPalette('#0A84FF');
 
   let html = `
     <canvas class="ring-particles" width="${RING_SIZE}" height="${RING_SIZE}"></canvas>
@@ -98,10 +166,10 @@ function buildRing() {
     <svg class="ring-sector-svg" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}">
       <defs>
         <radialGradient id="sectorGradient" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="rgba(45, 27, 105, 0.6)" />
-          <stop offset="35%" stop-color="rgba(61, 42, 124, 0.3)" />
-          <stop offset="60%" stop-color="rgba(10, 132, 255, 0.12)" />
-          <stop offset="80%" stop-color="rgba(45, 27, 105, 0.05)" />
+          <stop offset="0%" stop-color="rgba(var(--purple-rgb), 0.6)" />
+          <stop offset="35%" stop-color="rgba(var(--purple-mid-rgb), 0.3)" />
+          <stop offset="60%" stop-color="rgba(var(--glow-rgb), 0.12)" />
+          <stop offset="80%" stop-color="rgba(var(--purple-rgb), 0.05)" />
           <stop offset="100%" stop-color="transparent" />
         </radialGradient>
       </defs>
@@ -112,10 +180,10 @@ function buildRing() {
       <defs>
         <linearGradient id="beamGradient" gradientUnits="userSpaceOnUse"
           x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}">
-          <stop offset="0%" stop-color="rgba(45, 27, 105, 0)" />
-          <stop offset="30%" stop-color="rgba(61, 42, 124, 0.3)" />
-          <stop offset="70%" stop-color="rgba(10, 132, 255, 0.45)" />
-          <stop offset="100%" stop-color="rgba(79, 209, 255, 0.5)" />
+          <stop offset="0%" stop-color="rgba(var(--purple-rgb), 0)" />
+          <stop offset="30%" stop-color="rgba(var(--purple-mid-rgb), 0.3)" />
+          <stop offset="70%" stop-color="rgba(var(--glow-rgb), 0.45)" />
+          <stop offset="100%" stop-color="rgba(var(--glow-secondary-rgb), 0.5)" />
         </linearGradient>
       </defs>
       <line class="ring-beam-glow" x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}" />
@@ -126,11 +194,11 @@ function buildRing() {
       <defs>
         <linearGradient id="arcGradient" gradientUnits="userSpaceOnUse"
           x1="${CENTER - NODE_ORBIT - 40}" y1="${CENTER}" x2="${CENTER + NODE_ORBIT + 40}" y2="${CENTER}">
-          <stop offset="0%" stop-color="#2D1B69" />
-          <stop offset="25%" stop-color="#0A84FF" />
-          <stop offset="50%" stop-color="#4FD1FF" />
-          <stop offset="75%" stop-color="#0A84FF" />
-          <stop offset="100%" stop-color="#2D1B69" />
+          <stop offset="0%" stop-color="var(--ring-purple-deep)" />
+          <stop offset="25%" stop-color="var(--ring-accent)" />
+          <stop offset="50%" stop-color="var(--ring-accent-secondary)" />
+          <stop offset="75%" stop-color="var(--ring-accent)" />
+          <stop offset="100%" stop-color="var(--ring-purple-deep)" />
         </linearGradient>
       </defs>
       <path class="ring-arc-glow" d="" />
@@ -253,13 +321,8 @@ function startParticles() {
   const particles = [];
   const NUM = 24;
 
-  const PARTICLE_COLORS = [
-    [45, 27, 105],
-    [61, 42, 124],
-    [10, 132, 255],
-    [79, 209, 255],
-    [26, 14, 62],
-  ];
+  const fallback = generateRingPalette('#0A84FF');
+  const PARTICLE_COLORS = (currentPalette || fallback).particleColors;
 
   for (let i = 0; i < NUM; i++) {
     particles.push({
@@ -294,9 +357,10 @@ function startParticles() {
         if (diff < spread) {
           const t = 1 - diff / spread;
           alpha = Math.min(1, alpha + 0.45 * t);
-          r = Math.round(r + (10 - r) * t * 0.6);
-          g = Math.round(g + (132 - g) * t * 0.6);
-          b = Math.round(b + (255 - b) * t * 0.6);
+          const lerpTarget = (currentPalette || fallback).accentRgb;
+          r = Math.round(r + (lerpTarget[0] - r) * t * 0.6);
+          g = Math.round(g + (lerpTarget[1] - g) * t * 0.6);
+          b = Math.round(b + (lerpTarget[2] - b) * t * 0.6);
         }
       }
 
@@ -658,8 +722,9 @@ function setupInteraction() {
 
   container.addEventListener("mousemove", (e) => {
     const rect = container.getBoundingClientRect();
-    const mx = e.clientX - rect.left - CENTER;
-    const my = e.clientY - rect.top - CENTER;
+    const zoom = parseFloat(getComputedStyle(container).zoom) || 1;
+    const mx = (e.clientX - rect.left) / zoom - CENTER;
+    const my = (e.clientY - rect.top) / zoom - CENTER;
 
     if (activeSubmenu >= 0) {
       handleSubmenuMouseMove(mx, my);
@@ -713,24 +778,19 @@ function setupInteraction() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const ring = document.getElementById("ring");
-  let wasHidden = true;
 
-  setInterval(async () => {
-    if (!document.hidden && wasHidden) {
-      wasHidden = false;
-      const { profile } = await globalThis.api.getActiveProfile();
-      slices = profile.slices;
+  // Simplified: no IPC calls needed — color/size/slices arrive via ring-data IPC
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
       hoveredIndex = -1;
       activeSubmenu = -1;
       submenuHoveredIndex = -1;
-      buildRing();
+      // Just re-trigger appear animation (data is already current from ring-data IPC)
       ring.classList.remove("appear");
-      ring.getAnimations(); // force reflow
+      void ring.offsetHeight;
       ring.classList.add("appear");
-    } else if (document.hidden) {
-      wasHidden = true;
     }
-  }, 100);
+  });
 });
 
 init(); // NOSONAR

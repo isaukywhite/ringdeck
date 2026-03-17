@@ -83,6 +83,13 @@ import qrCode from 'heroicons/24/outline/qr-code.svg?raw';
 import chevronRight from 'heroicons/24/outline/chevron-right.svg?raw';
 import arrowUturnLeft from 'heroicons/24/outline/arrow-uturn-left.svg?raw';
 import squares2x2 from 'heroicons/24/outline/squares-2x2.svg?raw';
+import playPause from 'heroicons/24/outline/play-pause.svg?raw';
+import forward from 'heroicons/24/outline/forward.svg?raw';
+import backward from 'heroicons/24/outline/backward.svg?raw';
+import speakerXMark from 'heroicons/24/outline/speaker-x-mark.svg?raw';
+import chatBubbleLeftRight from 'heroicons/24/outline/chat-bubble-left-right.svg?raw';
+import tableCells from 'heroicons/24/outline/table-cells.svg?raw';
+import presentationChartBar from 'heroicons/24/outline/presentation-chart-bar.svg?raw';
 
 // ─── Icon registry ───
 
@@ -169,6 +176,13 @@ export const ICON_MAP = {
   'chevron-right': chevronRight,
   'arrow-uturn-left': arrowUturnLeft,
   'squares-2x2': squares2x2,
+  'play-pause': playPause,
+  'forward': forward,
+  'backward': backward,
+  'speaker-x-mark': speakerXMark,
+  'chat-bubble-left-right': chatBubbleLeftRight,
+  'table-cells': tableCells,
+  'presentation-chart-bar': presentationChartBar,
 };
 
 // ─── Categories for the picker ───

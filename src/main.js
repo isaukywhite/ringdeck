@@ -1,4 +1,5 @@
 import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from './icons.js';
+import { BUILTIN_PRESETS } from './color-engine.js';
 
 let sentryEnabled = false;
 globalThis.api.getTelemetryConsent().then((v) => { sentryEnabled = v; }); // NOSONAR
@@ -11,7 +12,7 @@ const SUBMENU_TEMPLATES = [
       { label: "Chrome", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`, args: [] } },
       { label: "Edge", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, args: [] } },
       { label: "Firefox", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Program Files\Mozilla Firefox\firefox.exe`, args: [] } },
-      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: String.raw`C:\Users\` + String.raw`AppData\Local\Programs\Opera\opera.exe`, args: [] } },
+      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: "", args: [] } },
     ]
   },
   {
@@ -66,6 +67,8 @@ let expandedSlice = -1;
 let pickerOpen = false;
 let dragSrcIndex = -1;
 let activeProfileIndex = 0;
+let activeView = 'actions'; // 'actions' | 'settings'
+let appVersion = 'v0.0.0';
 
 function activeProfile() {
   return config.profiles[activeProfileIndex] || config.profiles[0];
@@ -85,8 +88,8 @@ function appName(path) {
 }
 
 function actionSummary(action) {
-  if (action.type === "Script") return action.command || "No command";
-  if (action.type === "Program") return appName(action.path) || "No program";
+  if (action.type === "Script") return escAttr(action.command || "No command");
+  if (action.type === "Program") return escAttr(appName(action.path) || "No program");
   if (action.type === "Submenu") {
     const count = (action.slices || []).length;
     return `${count} sub-action${count === 1 ? "" : "s"}`;
@@ -174,6 +177,13 @@ async function loadConfig() {
   }
   activeProfileIndex = 0;
   expandedSlice = -1;
+
+  // Load app version
+  try {
+    const v = await globalThis.api.getAppVersion();
+    if (v) appVersion = `v${v}`;
+  } catch (_) { /* fallback */ }
+
   render();
 }
 
@@ -466,7 +476,7 @@ function renderActionCard(s, i) {
         <span class="action-card-index">${i + 1}</span>
         <span class="action-card-icon">${sliceIcon(s, 22)}</span>
         <div class="action-card-info">
-          <div class="action-card-name">${s.label || "Untitled"}</div>
+          <div class="action-card-name">${escAttr(s.label || "Untitled")}</div>
           <div class="action-card-desc">${actionSummary(s.action)}</div>
         </div>
         <span class="action-card-chevron">›</span>
@@ -499,6 +509,168 @@ function renderProfileTabs() {
   </div>`;
 }
 
+// ─── Settings view ───
+
+function renderSettings() {
+  const settings = config.settings || {};
+  const activePreset = settings.activePreset || 'nebula';
+  const customPresets = settings.customPresets || [];
+  const ringSize = settings.ringSize || 'medium';
+  const launchAtStartup = settings.launchAtStartup || false;
+  const closeToTray = settings.closeToTray !== false;
+  const sendErrorReports = settings.sendErrorReports !== false;
+  const currentColor = settings.ringColor || '#0A84FF';
+
+  // Build preset swatches — built-in + custom
+  const builtinSwatches = BUILTIN_PRESETS.map(p => {
+    const isActive = activePreset === p.id;
+    return `<button class="swatch${isActive ? ' active' : ''}" data-preset-id="${p.id}" data-preset-color="${p.color}" title="${escAttr(p.name)}">
+      <span class="swatch-color" style="background:${p.color}"></span>
+      <span class="swatch-name">${escAttr(p.name)}</span>
+      ${isActive ? '<span class="swatch-check">✓</span>' : ''}
+    </button>`;
+  }).join('');
+
+  const customSwatches = customPresets.map(p => {
+    const isActive = activePreset === p.id;
+    return `<button class="swatch custom${isActive ? ' active' : ''}" data-preset-id="${p.id}" data-preset-color="${p.color}" title="${escAttr(p.name)}">
+      <span class="swatch-color" style="background:${p.color}"></span>
+      <span class="swatch-name">${escAttr(p.name)}</span>
+      ${isActive ? '<span class="swatch-check">✓</span>' : ''}
+      <span class="swatch-delete" data-delete-preset="${p.id}" title="Delete">×</span>
+    </button>`;
+  }).join('');
+
+  const sizes = ['tiny', 'mini', 'small', 'medium', 'large'];
+  const sizeButtons = sizes.map(s => {
+    const label = s.charAt(0).toUpperCase() + s.slice(1);
+    const px = { tiny: 16, mini: 20, small: 24, medium: 30, large: 36 };
+    return `<button class="size-btn${s === ringSize ? ' active' : ''}" data-size="${s}">
+      <span class="size-btn-ring" style="width:${px[s]}px;height:${px[s]}px"></span>
+      <span class="size-btn-label">${label}</span>
+    </button>`;
+  }).join('');
+
+  return `
+    <div class="settings-view">
+
+      <div class="setting-card">
+        <div class="setting-card-header">
+          <span class="setting-card-icon">${resolveIcon('paint-brush')}</span>
+          <div>
+            <div class="setting-card-title">Ring Color</div>
+            <div class="setting-card-desc">Choose a preset or create your own</div>
+          </div>
+        </div>
+        <div class="swatch-grid">${builtinSwatches}${customSwatches}</div>
+        <div class="custom-color-section">
+          <div class="color-preview-row">
+            <div class="color-preview-swatch" style="background:${currentColor}"></div>
+            <div class="color-inputs">
+              <input type="color" id="custom-color-picker" value="${currentColor}" />
+              <input type="text" id="custom-color-hex" value="${currentColor}" maxlength="7" placeholder="#000000" spellcheck="false" />
+            </div>
+          </div>
+          <div class="preset-save-row">
+            <input type="text" id="custom-preset-name" placeholder="Name your color…" maxlength="20" spellcheck="false" />
+            <button class="btn-save-preset" id="save-preset-btn">
+              <span class="btn-icon">+</span> Save Preset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-card-header">
+          <span class="setting-card-icon">${resolveIcon('cursor-arrow-rays')}</span>
+          <div>
+            <div class="setting-card-title">Ring Size</div>
+            <div class="setting-card-desc">Controls the ring overlay dimensions</div>
+          </div>
+        </div>
+        <div class="size-selector">${sizeButtons}</div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-card-header">
+          <span class="setting-card-icon">${resolveIcon('cog-6-tooth')}</span>
+          <div>
+            <div class="setting-card-title">Behavior</div>
+            <div class="setting-card-desc">System integration preferences</div>
+          </div>
+        </div>
+        <div class="toggle-list">
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Launch at startup</span>
+              <span class="toggle-desc">Start RingDeck when you log in</span>
+            </div>
+            <input type="checkbox" id="toggle-startup" ${launchAtStartup ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Close to tray</span>
+              <span class="toggle-desc">Keep running in the system tray</span>
+            </div>
+            <input type="checkbox" id="toggle-tray" ${closeToTray ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Send anonymous error reports</span>
+              <span class="toggle-desc">Help improve RingDeck by sharing crash data</span>
+            </div>
+            <input type="checkbox" id="toggle-error-reports" ${sendErrorReports ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <span class="settings-version">RingDeck ${appVersion}</span>
+      </div>
+
+    </div>
+  `;
+}
+
+
+// ─── Actions view (extracted for clean template nesting) ───
+
+function renderActionsView(profile, cards, n) {
+  return `${renderProfileTabs()}
+
+    <div class="right-header">
+      <span class="right-title">${escAttr(profile.name || 'Untitled')}</span>
+      <span class="slice-count">${n} item${n === 1 ? "" : "s"}</span>
+      ${config.profiles.length > 1 ? `<button class="btn-delete-profile" id="delete-profile-btn" title="Delete this profile">🗑</button>` : ''}
+    </div>
+
+    <div class="profile-name-row">
+      <label class="detail-label">Profile name</label>
+      <input type="text" id="profile-name-input" value="${escAttr(profile.name || '')}" placeholder="Profile name" />
+    </div>
+
+    <div class="action-list" id="action-list">
+      ${n === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">${resolveIcon('cog-6-tooth')}</div>
+          <div class="empty-state-text">No actions yet</div>
+          <div class="empty-state-hint">Add your first action to get started</div>
+        </div>
+      ` : cards}
+      <button class="add-action-btn" id="add-btn">
+        <span class="plus">+</span> Add Action
+      </button>
+    </div>
+
+    <div class="bottom-bar">
+      <span class="save-status" id="save-status"></span>
+      <button class="btn-save" id="save-btn">Save</button>
+    </div>`;
+}
+
 // ─── Main render ───
 
 function render() {
@@ -517,12 +689,7 @@ function render() {
           <img class="app-logo" src="logo_ring_2_1.png" alt="" />
           <h1>RingDeck</h1>
         </div>
-        <div class="app-version">v0.2.3</div>
-
-        <label class="telemetry-toggle">
-          <input type="checkbox" id="telemetry-checkbox" ${sentryEnabled ? "checked" : ""} />
-          <span class="telemetry-label">Send anonymous error reports</span>
-        </label>
+        <div class="app-version">${appVersion}</div>
 
         ${renderPreview()}
 
@@ -537,36 +704,12 @@ function render() {
       </div>
 
       <div class="right-pane">
-        ${renderProfileTabs()}
-
-        <div class="right-header">
-          <span class="right-title">${escAttr(profile.name || 'Untitled')}</span>
-          <span class="slice-count">${n} item${n === 1 ? "" : "s"}</span>
-          ${config.profiles.length > 1 ? `<button class="btn-delete-profile" id="delete-profile-btn" title="Delete this profile">🗑</button>` : ''}
+        <div class="config-nav">
+          <button class="config-nav-tab${activeView === 'actions' ? ' active' : ''}" data-view="actions">Actions</button>
+          <button class="config-nav-tab${activeView === 'settings' ? ' active' : ''}" data-view="settings">Settings</button>
         </div>
 
-        <div class="profile-name-row">
-          <label class="detail-label">Profile name</label>
-          <input type="text" id="profile-name-input" value="${escAttr(profile.name || '')}" placeholder="Profile name" />
-        </div>
-
-        <div class="action-list" id="action-list">
-          ${n === 0 ? `
-            <div class="empty-state">
-              <div class="empty-state-icon">${resolveIcon('cog-6-tooth')}</div>
-              <div class="empty-state-text">No actions yet</div>
-              <div class="empty-state-hint">Add your first action to get started</div>
-            </div>
-          ` : cards}
-          <button class="add-action-btn" id="add-btn">
-            <span class="plus">+</span> Add Action
-          </button>
-        </div>
-
-        <div class="bottom-bar">
-          <span class="save-status" id="save-status"></span>
-          <button class="btn-save" id="save-btn">Save</button>
-        </div>
+        ${activeView === 'settings' ? renderSettings() : renderActionsView(profile, cards, n)}
       </div>
     </div>
   `;
@@ -575,7 +718,20 @@ function render() {
 }
 
 function bindEvents() {
-  document.getElementById("shortcut-box").addEventListener("click", startRecording);
+  // Config nav tabs
+  document.querySelectorAll('.config-nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      activeView = tab.dataset.view;
+      render();
+    });
+  });
+
+  if (activeView === 'settings') {
+    bindSettingsEvents();
+    return;
+  }
+
+  document.getElementById("shortcut-box")?.addEventListener("click", startRecording);
 
   // Clear shortcut button
   const clearShortcutBtn = document.getElementById("clear-shortcut-btn");
@@ -589,11 +745,11 @@ function bindEvents() {
       }
     });
   }
-  document.getElementById("add-btn").addEventListener("click", addSlice);
-  document.getElementById("save-btn").addEventListener("click", saveConfig);
+  document.getElementById("add-btn")?.addEventListener("click", addSlice);
+  document.getElementById("save-btn")?.addEventListener("click", saveConfig);
 
   // Telemetry toggle
-  document.getElementById("telemetry-checkbox").addEventListener("change", (e) => {
+  document.getElementById("telemetry-checkbox")?.addEventListener("change", (e) => {
     sentryEnabled = e.target.checked;
     globalThis.api.setTelemetryConsent(sentryEnabled);
   });
@@ -1077,7 +1233,7 @@ function openSubIconPicker(parentIdx, subIdx) {
 }
 
 function escAttr(str) {
-  return (str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return (str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;");
 }
 
 // ─── Add Slice ───
@@ -1235,3 +1391,119 @@ async function saveConfig() {
 }
 
 loadConfig();
+
+// ─── Settings event bindings ───
+
+function bindSettingsEvents() {
+  // Swatch clicks (built-in + custom)
+  document.querySelectorAll('.swatch').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      if (e.target.closest('.swatch-delete')) return; // handled separately
+      const presetId = btn.dataset.presetId;
+      const color = btn.dataset.presetColor;
+      if (!config.settings) config.settings = {};
+      config.settings.activePreset = presetId;
+      config.settings.ringColor = color;
+      await globalThis.api.setRingColor(color);
+      await globalThis.api.saveSettings(config.settings);
+      render();
+    });
+  });
+
+  // Delete custom preset
+  document.querySelectorAll('.swatch-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.deletePreset;
+      if (!config.settings) return;
+      config.settings.customPresets = (config.settings.customPresets || []).filter(p => p.id !== id);
+      // If deleted preset was active, switch to nebula
+      if (config.settings.activePreset === id) {
+        config.settings.activePreset = 'nebula';
+        config.settings.ringColor = '#0A84FF';
+        await globalThis.api.setRingColor('#0A84FF');
+      }
+      await globalThis.api.saveSettings(config.settings);
+      render();
+    });
+  });
+
+  // Custom color picker
+  const picker = document.getElementById('custom-color-picker');
+  const hexInput = document.getElementById('custom-color-hex');
+  if (picker) {
+    picker.addEventListener('input', (e) => {
+      const hex = e.target.value;
+      if (hexInput) hexInput.value = hex;
+      globalThis.api.setRingColor(hex);
+    });
+  }
+  if (hexInput) {
+    hexInput.addEventListener('change', () => {
+      let hex = hexInput.value.trim();
+      if (!hex.startsWith('#')) hex = '#' + hex;
+      if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+        if (picker) picker.value = hex;
+        globalThis.api.setRingColor(hex);
+      }
+    });
+  }
+
+  // Save custom preset
+  const savePresetBtn = document.getElementById('save-preset-btn');
+  if (savePresetBtn) {
+    savePresetBtn.addEventListener('click', async () => {
+      const nameInput = document.getElementById('custom-preset-name');
+      const name = nameInput?.value.trim();
+      const color = hexInput?.value.trim() || picker?.value || '#0A84FF';
+      if (!name) { nameInput?.focus(); return; }
+      if (!config.settings) config.settings = {};
+      if (!config.settings.customPresets) config.settings.customPresets = [];
+      const id = 'custom_' + Date.now();
+      config.settings.customPresets.push({ id, name, color });
+      config.settings.activePreset = id;
+      config.settings.ringColor = color;
+      await globalThis.api.setRingColor(color);
+      await globalThis.api.saveSettings(config.settings);
+      render();
+    });
+  }
+
+  // Ring size buttons
+  for (const btn of document.querySelectorAll('.size-btn')) {
+    btn.addEventListener('click', async () => {
+      if (!config.settings) config.settings = {};
+      config.settings.ringSize = btn.dataset.size;
+      await globalThis.api.saveSettings(config.settings);
+      render();
+    });
+  }
+
+  // Toggles
+  const startupToggle = document.getElementById('toggle-startup');
+  const trayToggle = document.getElementById('toggle-tray');
+  if (startupToggle) {
+    startupToggle.addEventListener('change', async () => {
+      if (!config.settings) config.settings = {};
+      config.settings.launchAtStartup = startupToggle.checked;
+      await globalThis.api.saveSettings(config.settings);
+    });
+  }
+  if (trayToggle) {
+    trayToggle.addEventListener('change', async () => {
+      if (!config.settings) config.settings = {};
+      config.settings.closeToTray = trayToggle.checked;
+      await globalThis.api.saveSettings(config.settings);
+    });
+  }
+  const errorToggle = document.getElementById('toggle-error-reports');
+  if (errorToggle) {
+    errorToggle.addEventListener('change', async () => {
+      if (!config.settings) config.settings = {};
+      config.settings.sendErrorReports = errorToggle.checked;
+      sentryEnabled = errorToggle.checked;
+      await globalThis.api.setTelemetryConsent(errorToggle.checked);
+      await globalThis.api.saveSettings(config.settings);
+    });
+  }
+}
