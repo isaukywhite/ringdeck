@@ -24,10 +24,10 @@ export function buildRing() {
     <svg class="ring-sector-svg" viewBox="0 0 ${RING_SIZE} ${RING_SIZE}">
       <defs>
         <radialGradient id="sectorGradient" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="rgba(45, 27, 105, 0.6)" />
-          <stop offset="35%" stop-color="rgba(61, 42, 124, 0.3)" />
-          <stop offset="60%" stop-color="rgba(10, 132, 255, 0.12)" />
-          <stop offset="80%" stop-color="rgba(45, 27, 105, 0.05)" />
+          <stop offset="0%" stop-color="rgba(var(--purple-rgb), 0.6)" />
+          <stop offset="35%" stop-color="rgba(var(--purple-mid-rgb), 0.3)" />
+          <stop offset="60%" stop-color="rgba(var(--glow-rgb), 0.12)" />
+          <stop offset="80%" stop-color="rgba(var(--purple-rgb), 0.05)" />
           <stop offset="100%" stop-color="transparent" />
         </radialGradient>
       </defs>
@@ -38,10 +38,10 @@ export function buildRing() {
       <defs>
         <linearGradient id="beamGradient" gradientUnits="userSpaceOnUse"
           x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}">
-          <stop offset="0%" stop-color="rgba(45, 27, 105, 0)" />
-          <stop offset="30%" stop-color="rgba(61, 42, 124, 0.3)" />
-          <stop offset="70%" stop-color="rgba(10, 132, 255, 0.45)" />
-          <stop offset="100%" stop-color="rgba(79, 209, 255, 0.5)" />
+          <stop offset="0%" stop-color="rgba(var(--purple-rgb), 0)" />
+          <stop offset="30%" stop-color="rgba(var(--purple-mid-rgb), 0.3)" />
+          <stop offset="70%" stop-color="rgba(var(--glow-rgb), 0.45)" />
+          <stop offset="100%" stop-color="rgba(var(--glow-secondary-rgb), 0.5)" />
         </linearGradient>
       </defs>
       <line class="ring-beam-glow" x1="${CENTER}" y1="${CENTER}" x2="${CENTER}" y2="${CENTER}" />
@@ -52,11 +52,11 @@ export function buildRing() {
       <defs>
         <linearGradient id="arcGradient" gradientUnits="userSpaceOnUse"
           x1="${CENTER - NODE_ORBIT - 40}" y1="${CENTER}" x2="${CENTER + NODE_ORBIT + 40}" y2="${CENTER}">
-          <stop offset="0%" stop-color="#2D1B69" />
-          <stop offset="25%" stop-color="#0A84FF" />
-          <stop offset="50%" stop-color="#4FD1FF" />
-          <stop offset="75%" stop-color="#0A84FF" />
-          <stop offset="100%" stop-color="#2D1B69" />
+          <stop offset="0%" stop-color="var(--ring-purple-deep)" />
+          <stop offset="25%" stop-color="var(--ring-accent)" />
+          <stop offset="50%" stop-color="var(--ring-accent-secondary)" />
+          <stop offset="75%" stop-color="var(--ring-accent)" />
+          <stop offset="100%" stop-color="var(--ring-purple-deep)" />
         </linearGradient>
       </defs>
       <path class="ring-arc-glow" d="" />

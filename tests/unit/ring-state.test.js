@@ -7,6 +7,7 @@ import {
   getActiveSubmenu, setActiveSubmenu,
   getSubmenuHoveredIndex, setSubmenuHoveredIndex,
   getSubmenuTimer, setSubmenuTimer,
+  getCurrentPalette, setCurrentPalette,
   SUBMENU_HOVER_DELAY,
 } from '../../src/ring/state.js';
 
@@ -18,6 +19,7 @@ describe('ring/state', () => {
     setActiveSubmenu(-1);
     setSubmenuHoveredIndex(-1);
     setSubmenuTimer(null);
+    setCurrentPalette(null);
   });
 
   it('SUBMENU_HOVER_DELAY is 300', () => {
@@ -58,5 +60,12 @@ describe('ring/state', () => {
     expect(getSubmenuTimer()).toBeNull();
     setSubmenuTimer(123);
     expect(getSubmenuTimer()).toBe(123);
+  });
+
+  it('getCurrentPalette / setCurrentPalette', () => {
+    expect(getCurrentPalette()).toBeNull();
+    const palette = { accent: '#FF0000', particleColors: [[255, 0, 0]] };
+    setCurrentPalette(palette);
+    expect(getCurrentPalette()).toBe(palette);
   });
 });

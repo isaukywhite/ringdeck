@@ -1,3 +1,21 @@
+:root {
+  --ring-scale: 1;
+  --ring-accent: #0A84FF;
+  --ring-accent-secondary: #4FD1FF;
+  --ring-purple-deep: #2D1B69;
+  --ring-purple-mid: #3D2A7C;
+  --ring-purple-dark: #1A0E3E;
+  --glow-rgb: 10, 132, 255;
+  --glow-secondary-rgb: 79, 209, 255;
+  --purple-rgb: 45, 27, 105;
+  --purple-mid-rgb: 61, 42, 124;
+  --purple-dark-rgb: 26, 14, 62;
+  --ring-node-bg: linear-gradient(145deg, #0862C0 0%, #2D1B69 100%);
+  --ring-node-bg-hover: linear-gradient(145deg, #4FD1FF 0%, #0A84FF 100%);
+  --ring-center-gradient: radial-gradient(circle, #fff 0%, #3D2A7C 100%);
+  --ring-center-active: radial-gradient(circle, #fff 10%, #0A84FF 70%, #2D1B69 100%);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -7,14 +25,18 @@
 html, body {
   background: transparent;
   overflow: hidden;
-  width: 550px;
-  height: 550px;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #ring {
   position: relative;
   width: 400px;
   height: 400px;
-  margin: 75px auto;
   overflow: visible;
+  zoom: var(--ring-scale);
 }
+

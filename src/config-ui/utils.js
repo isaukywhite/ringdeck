@@ -14,8 +14,8 @@ export function appName(path) {
 }
 
 export function actionSummary(action) {
-  if (action.type === 'Script') return action.command || 'No command';
-  if (action.type === 'Program') return appName(action.path) || 'No program';
+  if (action.type === 'Script') return escAttr(action.command || 'No command');
+  if (action.type === 'Program') return escAttr(appName(action.path) || 'No program');
   if (action.type === 'Submenu') {
     const count = (action.slices || []).length;
     return `${count} sub-action${count === 1 ? '' : 's'}`;
@@ -82,5 +82,5 @@ export function migrateIcon(s) {
 }
 
 export function escAttr(str) {
-  return (str || '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+  return (str || '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll("'", '&#39;');
 }

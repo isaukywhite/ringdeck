@@ -6,7 +6,7 @@ export const SUBMENU_TEMPLATES = [
       { label: "Chrome", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", args: [] } },
       { label: "Edge", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", args: [] } },
       { label: "Firefox", icon: "globe-alt", action: { type: "Program", path: "C:\\Program Files\\Mozilla Firefox\\firefox.exe", args: [] } },
-      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: "C:\\Users\\AppData\\Local\\Programs\\Opera\\opera.exe", args: [] } },
+      { label: "Opera", icon: "globe-alt", action: { type: "Program", path: "", args: [] } },
     ]
   },
   {

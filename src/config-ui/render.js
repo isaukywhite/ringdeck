@@ -1,9 +1,10 @@
 import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from '../icons.js';
 import { appName, actionSummary, escAttr, sliceIcon } from './utils.js';
 import { SUBMENU_TEMPLATES } from './templates.js';
+import { BUILTIN_PRESETS } from '../color-engine.js';
 import {
   getConfig, activeProfile, getExpandedSlice, getSentryEnabled,
-  getActiveProfileIndex,
+  getActiveProfileIndex, getActiveView, getAppVersion,
 } from './state.js';
 
 // Registration slot for bindEvents — set by events.js to break the circular dependency
@@ -256,7 +257,6 @@ export function buildPickerContent(body, currentIcon, query) {
     html += `</div>`;
   }
 
-  // Also search all icons not in categories
   if (q) {
     const extra = renderExtraIcons(q, currentIcon);
     if (extra.found) {
@@ -272,6 +272,166 @@ export function buildPickerContent(body, currentIcon, query) {
   body.innerHTML = html;
 }
 
+// ─── Settings view ───
+
+export function renderSettings() {
+  const config = getConfig();
+  const settings = config.settings || {};
+  const activePreset = settings.activePreset || 'nebula';
+  const customPresets = settings.customPresets || [];
+  const ringSize = settings.ringSize || 'medium';
+  const launchAtStartup = settings.launchAtStartup || false;
+  const closeToTray = settings.closeToTray !== false;
+  const sendErrorReports = settings.sendErrorReports !== false;
+  const currentColor = settings.ringColor || '#0A84FF';
+
+  const builtinSwatches = BUILTIN_PRESETS.map(p => {
+    const isActive = activePreset === p.id;
+    return `<button class="swatch${isActive ? ' active' : ''}" data-preset-id="${p.id}" data-preset-color="${p.color}" title="${escAttr(p.name)}">
+      <span class="swatch-color" style="background:${p.color}"></span>
+      <span class="swatch-name">${escAttr(p.name)}</span>
+      ${isActive ? '<span class="swatch-check">✔</span>' : ''}
+    </button>`;
+  }).join('');
+
+  const customSwatches = customPresets.map(p => {
+    const isActive = activePreset === p.id;
+    return `<button class="swatch custom${isActive ? ' active' : ''}" data-preset-id="${p.id}" data-preset-color="${p.color}" title="${escAttr(p.name)}">
+      <span class="swatch-color" style="background:${p.color}"></span>
+      <span class="swatch-name">${escAttr(p.name)}</span>
+      ${isActive ? '<span class="swatch-check">✔</span>' : ''}
+      <span class="swatch-delete" data-delete-preset="${p.id}" title="Delete">×</span>
+    </button>`;
+  }).join('');
+
+  const sizes = ['tiny', 'mini', 'small', 'medium', 'large'];
+  const sizeButtons = sizes.map(s => {
+    const label = s.charAt(0).toUpperCase() + s.slice(1);
+    const px = { tiny: 16, mini: 20, small: 24, medium: 30, large: 36 };
+    return `<button class="size-btn${s === ringSize ? ' active' : ''}" data-size="${s}">
+      <span class="size-btn-ring" style="width:${px[s]}px;height:${px[s]}px"></span>
+      <span class="size-btn-label">${label}</span>
+    </button>`;
+  }).join('');
+
+  return `
+    <div class="settings-view">
+      <div class="setting-card">
+        <div class="setting-card-header">
+          <span class="setting-card-icon">${resolveIcon('paint-brush')}</span>
+          <div>
+            <div class="setting-card-title">Ring Color</div>
+            <div class="setting-card-desc">Choose a preset or create your own</div>
+          </div>
+        </div>
+        <div class="swatch-grid">${builtinSwatches}${customSwatches}</div>
+        <div class="custom-color-section">
+          <div class="color-preview-row">
+            <div class="color-preview-swatch" style="background:${currentColor}"></div>
+            <div class="color-inputs">
+              <input type="color" id="custom-color-picker" value="${currentColor}" />
+              <input type="text" id="custom-color-hex" value="${currentColor}" maxlength="7" placeholder="#000000" spellcheck="false" />
+            </div>
+          </div>
+          <div class="preset-save-row">
+            <input type="text" id="custom-preset-name" placeholder="Name your color…" maxlength="20" spellcheck="false" />
+            <button class="btn-save-preset" id="save-preset-btn">
+              <span class="btn-icon">+</span> Save Preset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-card-header">
+          <span class="setting-card-icon">${resolveIcon('cursor-arrow-rays')}</span>
+          <div>
+            <div class="setting-card-title">Ring Size</div>
+            <div class="setting-card-desc">Controls the ring overlay dimensions</div>
+          </div>
+        </div>
+        <div class="size-selector">${sizeButtons}</div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-card-header">
+          <span class="setting-card-icon">${resolveIcon('cog-6-tooth')}</span>
+          <div>
+            <div class="setting-card-title">Behavior</div>
+            <div class="setting-card-desc">System integration preferences</div>
+          </div>
+        </div>
+        <div class="toggle-list">
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Launch at startup</span>
+              <span class="toggle-desc">Start RingDeck when you log in</span>
+            </div>
+            <input type="checkbox" id="toggle-startup" ${launchAtStartup ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Close to tray</span>
+              <span class="toggle-desc">Keep running in the system tray</span>
+            </div>
+            <input type="checkbox" id="toggle-tray" ${closeToTray ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Send anonymous error reports</span>
+              <span class="toggle-desc">Help improve RingDeck by sharing crash data</span>
+            </div>
+            <input type="checkbox" id="toggle-error-reports" ${sendErrorReports ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <span class="settings-version">RingDeck ${getAppVersion()}</span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Actions view ───
+
+export function renderActionsView(profile, cards, n) {
+  const config = getConfig();
+  return `${renderProfileTabs()}
+
+    <div class="right-header">
+      <span class="right-title">${escAttr(profile.name || 'Untitled')}</span>
+      <span class="slice-count">${n} item${n === 1 ? "" : "s"}</span>
+      ${config.profiles.length > 1 ? `<button class="btn-delete-profile" id="delete-profile-btn" title="Delete this profile">🗑</button>` : ''}
+    </div>
+
+    <div class="profile-name-row">
+      <label class="detail-label">Profile name</label>
+      <input type="text" id="profile-name-input" value="${escAttr(profile.name || '')}" placeholder="Profile name" />
+    </div>
+
+    <div class="action-list" id="action-list">
+      ${n === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">${resolveIcon('cog-6-tooth')}</div>
+          <div class="empty-state-text">No actions yet</div>
+          <div class="empty-state-hint">Add your first action to get started</div>
+        </div>
+      ` : cards}
+      <button class="add-action-btn" id="add-btn">
+        <span class="plus">+</span> Add Action
+      </button>
+    </div>
+
+    <div class="bottom-bar">
+      <span class="save-status" id="save-status"></span>
+      <button class="btn-save" id="save-btn">Save</button>
+    </div>`;
+}
+
 // ─── Main render ───
 
 export function render() {
@@ -279,8 +439,7 @@ export function render() {
   const profile = activeProfile();
   if (!profile) return;
 
-  const config = getConfig();
-  const sentryEnabled = getSentryEnabled();
+  const activeView = getActiveView();
 
   const slices = profile.slices;
   const n = slices.length;
@@ -293,12 +452,7 @@ export function render() {
           <img class="app-logo" src="logo_ring_2_1.png" alt="" />
           <h1>RingDeck</h1>
         </div>
-        <div class="app-version">v0.2.3</div>
-
-        <label class="telemetry-toggle">
-          <input type="checkbox" id="telemetry-checkbox" ${sentryEnabled ? "checked" : ""} />
-          <span class="telemetry-label">Send anonymous error reports</span>
-        </label>
+        <div class="app-version">${getAppVersion()}</div>
 
         ${renderPreview()}
 
@@ -313,36 +467,12 @@ export function render() {
       </div>
 
       <div class="right-pane">
-        ${renderProfileTabs()}
-
-        <div class="right-header">
-          <span class="right-title">${escAttr(profile.name || 'Untitled')}</span>
-          <span class="slice-count">${n} item${n === 1 ? "" : "s"}</span>
-          ${config.profiles.length > 1 ? `<button class="btn-delete-profile" id="delete-profile-btn" title="Delete this profile">🗑</button>` : ''}
+        <div class="config-nav">
+          <button class="config-nav-tab${activeView === 'actions' ? ' active' : ''}" data-view="actions">Actions</button>
+          <button class="config-nav-tab${activeView === 'settings' ? ' active' : ''}" data-view="settings">Settings</button>
         </div>
 
-        <div class="profile-name-row">
-          <label class="detail-label">Profile name</label>
-          <input type="text" id="profile-name-input" value="${escAttr(profile.name || '')}" placeholder="Profile name" />
-        </div>
-
-        <div class="action-list" id="action-list">
-          ${n === 0 ? `
-            <div class="empty-state">
-              <div class="empty-state-icon">${resolveIcon('cog-6-tooth')}</div>
-              <div class="empty-state-text">No actions yet</div>
-              <div class="empty-state-hint">Add your first action to get started</div>
-            </div>
-          ` : cards}
-          <button class="add-action-btn" id="add-btn">
-            <span class="plus">+</span> Add Action
-          </button>
-        </div>
-
-        <div class="bottom-bar">
-          <span class="save-status" id="save-status"></span>
-          <button class="btn-save" id="save-btn">Save</button>
-        </div>
+        ${activeView === 'settings' ? renderSettings() : renderActionsView(profile, cards, n)}
       </div>
     </div>
   `;

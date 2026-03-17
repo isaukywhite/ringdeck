@@ -185,13 +185,19 @@ export async function handleKeyUp(e) {
 }
 handleKeyUp._ringShowTime = 0;
 
+let _interactionSetup = false;
+
 export function setupInteraction() {
+  if (_interactionSetup) return;
+  _interactionSetup = true;
+
   const container = document.getElementById("ring");
 
   container.addEventListener("mousemove", (e) => {
     const rect = container.getBoundingClientRect();
-    const mx = e.clientX - rect.left - CENTER;
-    const my = e.clientY - rect.top - CENTER;
+    const zoom = parseFloat(getComputedStyle(container).zoom) || 1;
+    const mx = (e.clientX - rect.left) / zoom - CENTER;
+    const my = (e.clientY - rect.top) / zoom - CENTER;
 
     if (getActiveSubmenu() >= 0) {
       handleSubmenuMouseMove(mx, my);

@@ -11,4 +11,12 @@ contextBridge.exposeInMainWorld("api", {
   executeSubmenuAction: (parentIndex, childIndex) => ipcRenderer.invoke("execute_submenu_action", parentIndex, childIndex),
   getTelemetryConsent: () => ipcRenderer.invoke("get_telemetry_consent"),
   setTelemetryConsent: (consent) => ipcRenderer.invoke("set_telemetry_consent", consent),
+  getRingColor: () => ipcRenderer.invoke("get_ring_color"),
+  getRingSize: () => ipcRenderer.invoke("get_ring_size"),
+  setRingColor: (hex) => ipcRenderer.invoke("set_ring_color", hex),
+  setRingSize: (size) => ipcRenderer.invoke("set_ring_size", size),
+  saveSettings: (settings) => ipcRenderer.invoke("save_settings", settings),
+  getAppVersion: () => ipcRenderer.invoke("get_app_version"),
+  onRingData: (cb) => ipcRenderer.on("ring-data", (_e, data) => cb(data)),
 });
+

@@ -1,4 +1,4 @@
-const { BrowserWindow, screen } = require("electron");
+const { BrowserWindow, screen, globalShortcut } = require("electron");
 const path = require("node:path");
 const { getConfig, getActiveProfileIndex, setActiveProfileIndex } = require("./config");
 
@@ -6,7 +6,28 @@ const { getConfig, getActiveProfileIndex, setActiveProfileIndex } = require("./c
 
 let mainWindow = null;
 let ringWindow = null;
+let ringReady = false;
+let isQuitting = false;
 let tray = null;
+
+const RING_SIZES = {
+  tiny: 248,
+  mini: 330,
+  small: 420,
+  medium: 550,
+  large: 660,
+};
+
+function getRingWindowSize() {
+  const config = getConfig();
+  const size = (config.settings && config.settings.ringSize) || "medium";
+  return RING_SIZES[size] || 550;
+}
+
+function getRingColor() {
+  const config = getConfig();
+  return (config.settings && config.settings.ringColor) || "#0A84FF";
+}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -24,12 +45,26 @@ function createMainWindow() {
   mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
 
   mainWindow.on("close", (e) => {
-    e.preventDefault();
-    mainWindow.hide();
+    if (isQuitting) return;
+
+    const config = getConfig();
+    const closeToTray = config.settings?.closeToTray !== false;
+    if (closeToTray) {
+      e.preventDefault();
+      mainWindow.hide();
+    } else {
+      isQuitting = true;
+      if (tray) { tray.destroy(); tray = null; }
+      if (ringWindow && !ringWindow.isDestroyed()) ringWindow.destroy();
+      globalShortcut.unregisterAll();
+      const { app } = require("electron");
+      app.quit();
+    }
   });
 }
 
 function createRingWindow() {
+  ringReady = false;
   ringWindow = new BrowserWindow({
     width: 550,
     height: 550,
@@ -50,13 +85,29 @@ function createRingWindow() {
 
   ringWindow.loadFile(path.join(__dirname, "..", "dist", "ring.html"));
 
+  ringWindow.webContents.on("did-finish-load", () => {
+    ringReady = true;
+    sendRingData(getActiveProfileIndex());
+  });
+
   ringWindow.on("blur", () => {
     if (!ringWindow.isDestroyed()) ringWindow.hide();
   });
 }
 
+function sendRingData(profileIndex) {
+  const config = getConfig();
+  const profile = config.profiles[profileIndex];
+  if (profile && ringWindow && !ringWindow.isDestroyed() && ringReady) {
+    ringWindow.webContents.send("ring-data", {
+      slices: profile.slices,
+      color: getRingColor(),
+      size: (config.settings && config.settings.ringSize) || "medium",
+    });
+  }
+}
+
 function showRingAtCursor(profileIndex) {
-  // Guard: ignore repeated shortcut triggers (key repeat) if ring is already visible
   if (ringWindow && !ringWindow.isDestroyed() && ringWindow.isVisible()) {
     return;
   }
@@ -65,21 +116,15 @@ function showRingAtCursor(profileIndex) {
   if (!ringWindow || ringWindow.isDestroyed()) {
     createRingWindow();
   }
+
+  const winSize = getRingWindowSize();
+  const half = Math.round(winSize / 2);
   const cursor = screen.getCursorScreenPoint();
-  const x = Math.round(cursor.x - 275);
-  const y = Math.round(cursor.y - 275);
-  ringWindow.setBounds({ x, y, width: 550, height: 550 });
+  const x = Math.round(cursor.x - half);
+  const y = Math.round(cursor.y - half);
+  ringWindow.setBounds({ x, y, width: winSize, height: winSize });
 
-  // Send active profile slices to the ring window
-  const config = getConfig();
-  const profile = config.profiles[profileIndex];
-  if (profile) {
-    const json = JSON.stringify(profile.slices);
-    ringWindow.webContents.executeJavaScript(
-      `window.__updateSlices(${json})`
-    );
-  }
-
+  sendRingData(profileIndex);
   ringWindow.show();
   ringWindow.focus();
 }
@@ -100,12 +145,21 @@ function setTray(t) {
   tray = t;
 }
 
+function setIsQuitting(v) {
+  isQuitting = v;
+}
+
 module.exports = {
   createMainWindow,
   createRingWindow,
   showRingAtCursor,
+  sendRingData,
   getMainWindow,
   getRingWindow,
+  getRingWindowSize,
+  RING_SIZES,
   getTray,
   setTray,
+  setIsQuitting,
 };
+

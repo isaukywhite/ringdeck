@@ -106,6 +106,21 @@ function migrateConfig(cfg) {
     saveConfigToDisk(migrated);
     return migrated;
   }
+
+  // Migrate configs that lack a settings field
+  if (cfg.profiles && !cfg.settings) {
+    cfg.settings = {
+      ringColor: "#0A84FF",
+      ringSize: "medium",
+      activePreset: "nebula",
+      launchAtStartup: false,
+      closeToTray: true,
+      sendErrorReports: false,
+      customPresets: [],
+    };
+    saveConfigToDisk(cfg);
+  }
+
   return cfg;
 }
 

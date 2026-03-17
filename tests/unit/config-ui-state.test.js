@@ -18,12 +18,13 @@ import {
   getDragSrcIndex, setDragSrcIndex,
   getActiveRecorder, setActiveRecorder,
   getSentryEnabled, setSentryEnabled,
+  getActiveView, setActiveView,
+  getAppVersion, setAppVersion,
   activeProfile,
 } from '../../src/config-ui/state.js';
 
 describe('config-ui/state', () => {
   beforeEach(() => {
-    // Reset to defaults
     setConfig({ profiles: [] });
     setActiveProfileIndex(0);
     setExpandedSlice(-1);
@@ -31,6 +32,8 @@ describe('config-ui/state', () => {
     setDragSrcIndex(-1);
     setActiveRecorder(null);
     setSentryEnabled(false);
+    setActiveView('actions');
+    setAppVersion('');
   });
 
   it('getConfig / setConfig round-trips', () => {
@@ -98,5 +101,17 @@ describe('config-ui/state', () => {
   it('activeProfile returns undefined when profiles is empty', () => {
     setConfig({ profiles: [] });
     expect(activeProfile()).toBeUndefined();
+  });
+
+  it('getActiveView / setActiveView', () => {
+    expect(getActiveView()).toBe('actions');
+    setActiveView('settings');
+    expect(getActiveView()).toBe('settings');
+  });
+
+  it('getAppVersion / setAppVersion', () => {
+    expect(getAppVersion()).toBe('');
+    setAppVersion('v0.2.3');
+    expect(getAppVersion()).toBe('v0.2.3');
   });
 });

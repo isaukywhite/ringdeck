@@ -11,7 +11,7 @@
 
 .ring-orbit-circle {
   fill: none;
-  stroke: rgba(61, 42, 124, 0.15);
+  stroke: rgba(var(--purple-mid-rgb), 0.15);
   stroke-width: 1;
   stroke-dasharray: 4 6;
   transition: stroke 0.3s, stroke-width 0.3s;
@@ -20,7 +20,7 @@
 }
 
 .ring-orbit-circle.active {
-  stroke: rgba(10, 132, 255, 0.2);
+  stroke: rgba(var(--glow-rgb), 0.2);
   stroke-width: 1.5;
 }
 

@@ -29,7 +29,15 @@ function setupTray() {
     {
       label: "Quit",
       click: () => {
-        mainWindow.destroy();
+        const { setIsQuitting, getRingWindow, getTray } = require("./windows");
+        setIsQuitting(true);
+        const t = getTray();
+        if (t) { t.destroy(); setTray(null); }
+        const rw = getRingWindow();
+        if (rw && !rw.isDestroyed()) rw.destroy();
+        const { globalShortcut } = require("electron");
+        globalShortcut.unregisterAll();
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
         app.quit();
       },
     },
