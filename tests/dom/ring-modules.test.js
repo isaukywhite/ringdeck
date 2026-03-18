@@ -13,6 +13,10 @@ vi.hoisted(() => {
     executeAction: vi.fn().mockResolvedValue(undefined),
     executeSubmenuAction: vi.fn().mockResolvedValue(undefined),
     hideRing: vi.fn().mockResolvedValue(undefined),
+    onRingData: vi.fn(),
+    getRingColor: vi.fn().mockResolvedValue('#0A84FF'),
+    getRingSize: vi.fn().mockResolvedValue('medium'),
+    getActiveProfile: vi.fn().mockResolvedValue({ profile: { slices: [] } }),
   };
 });
 
@@ -37,6 +41,7 @@ import {
 } from '../../src/ring/hover.js';
 import {
   setupInteraction,
+  _resetInteractionSetup,
   handleMouseUp,
   handleKeyUp,
   highlightSubNode,
@@ -375,6 +380,7 @@ describe('ring/interaction', () => {
     setActiveSubmenu(-1);
     setSubmenuHoveredIndex(-1);
     setParticleAnim(null);
+    _resetInteractionSetup();
     buildRing();
 
     // Clear api mock call counts

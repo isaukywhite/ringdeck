@@ -167,7 +167,7 @@ function bindSettingsEvents() {
 
 // ─── Bind detail events for expanded action ───
 
-function bindDetail(idx) {
+export function bindDetail(idx) {
   const profile = activeProfile();
   if (!profile) return;
   const s = profile.slices[idx];
@@ -250,7 +250,7 @@ function bindDetail(idx) {
   document.querySelector(`.action-detail[data-detail="${idx}"]`)?.addEventListener("click", (e) => e.stopPropagation());
 }
 
-async function handleBrowseClick(s, idx) {
+export async function handleBrowseClick(s, idx) {
   const selected = await globalThis.api.openFileDialog();
   if (selected) {
     s.action.path = selected;
@@ -286,7 +286,7 @@ function addSlice() {
   render();
 }
 
-function bindSubActionEvents(parentIdx, parentSlice) {
+export function bindSubActionEvents(parentIdx, parentSlice) {
   const subSlices = parentSlice.action.slices || [];
 
   const addBtn = document.getElementById(`add-sub-${parentIdx}`);

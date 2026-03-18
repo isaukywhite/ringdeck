@@ -187,6 +187,8 @@ handleKeyUp._ringShowTime = 0;
 
 let _interactionSetup = false;
 
+export function _resetInteractionSetup() { _interactionSetup = false; }
+
 export function setupInteraction() {
   if (_interactionSetup) return;
   _interactionSetup = true;

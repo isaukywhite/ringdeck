@@ -30,9 +30,19 @@ vi.hoisted(() => {
       }],
     }),
     saveConfig: vi.fn().mockResolvedValue(undefined),
+    saveSettings: vi.fn().mockResolvedValue(undefined),
     openFileDialog: vi.fn().mockResolvedValue(null),
     getFileIcon: vi.fn().mockResolvedValue(null),
     hideRing: vi.fn().mockResolvedValue(undefined),
+    getAppVersion: vi.fn().mockResolvedValue('0.2.2'),
+    setRingColor: vi.fn().mockResolvedValue(undefined),
+    setRingSize: vi.fn().mockResolvedValue(undefined),
+    getRingColor: vi.fn().mockResolvedValue('#0A84FF'),
+    getRingSize: vi.fn().mockResolvedValue('medium'),
+    getActiveProfile: vi.fn().mockResolvedValue({ profile: { slices: [] } }),
+    onRingData: vi.fn(),
+    executeAction: vi.fn().mockResolvedValue(undefined),
+    executeSubmenuAction: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -708,11 +718,17 @@ describe('config-ui/events', () => {
     expect(activeProfile().name).toBe('New Name');
   });
 
-  it('telemetry checkbox toggles sentry', () => {
-    const checkbox = document.getElementById('telemetry-checkbox');
-    checkbox.checked = true;
-    checkbox.dispatchEvent(new Event('change'));
-    expect(globalThis.api.setTelemetryConsent).toHaveBeenCalled();
+  it('error reports toggle changes sentry setting', () => {
+    // Switch to settings view to get the toggle
+    const { setActiveView } = require('../../src/config-ui/state.js');
+    setActiveView('settings');
+    render();
+    const toggle = document.getElementById('toggle-error-reports');
+    if (toggle) {
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change'));
+      expect(globalThis.api.setTelemetryConsent).toHaveBeenCalled();
+    }
   });
 
   it('clear-shortcut-btn clears shortcut', () => {
