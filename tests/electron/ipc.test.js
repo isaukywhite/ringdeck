@@ -13,7 +13,7 @@ const mockElectron = {
   app: {
     getPath: vi.fn(() => '/tmp'),
     getVersion: vi.fn(() => '0.2.2'),
-    getFileIcon: vi.fn().mockResolvedValue({ toDataURL: () => 'data:image/png;base64,icon' }),
+    getFileIcon: vi.fn().mockResolvedValue({ isEmpty: () => false, toDataURL: () => 'data:image/png;base64,icon' }),
   },
   dialog: {
     showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: ['/Applications/Test.app'] }),
