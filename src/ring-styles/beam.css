@@ -28,7 +28,7 @@
 }
 
 .ring-beam-glow {
-  stroke: rgba(45, 27, 105, 0.2);
+  stroke: rgba(var(--purple-rgb), 0.2);
   stroke-width: 14;
   stroke-linecap: round;
   opacity: 0;

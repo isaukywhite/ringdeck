@@ -13,7 +13,7 @@ const mockElectron = {
   app: {
     getPath: vi.fn(() => '/tmp'),
     getVersion: vi.fn(() => '0.2.2'),
-    getFileIcon: vi.fn().mockResolvedValue({ toDataURL: () => 'data:image/png;base64,icon' }),
+    getFileIcon: vi.fn().mockResolvedValue({ isEmpty: () => false, toDataURL: () => 'data:image/png;base64,icon' }),
   },
   dialog: {
     showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: ['/Applications/Test.app'] }),
@@ -114,6 +114,12 @@ describe('electron/ipc.js handlers', () => {
     expect(channels).toContain('get_file_icon');
     expect(channels).toContain('execute_submenu_action');
     expect(channels).toContain('open_file_dialog');
+    expect(channels).toContain('get_ring_color');
+    expect(channels).toContain('get_ring_size');
+    expect(channels).toContain('set_ring_color');
+    expect(channels).toContain('set_ring_size');
+    expect(channels).toContain('save_settings');
+    expect(channels).toContain('get_app_version');
   });
 
   it('get_config returns config object', () => {
@@ -189,5 +195,43 @@ describe('electron/ipc.js handlers', () => {
   it('get_file_icon returns icon data URL', async () => {
     const result = await ipcHandlers['get_file_icon'](null, '/usr/bin/node');
     expect(result).toContain('data:image');
+  });
+
+  it('get_ring_color returns default blue when no settings', () => {
+    const result = ipcHandlers['get_ring_color']();
+    expect(result).toBe('#0A84FF');
+  });
+
+  it('get_ring_size returns default medium when no settings', () => {
+    const result = ipcHandlers['get_ring_size']();
+    expect(result).toBe('medium');
+  });
+
+  it('set_ring_color updates the ring color', () => {
+    ipcHandlers['set_ring_color'](null, '#FF4D94');
+    expect(ipcHandlers['get_ring_color']()).toBe('#FF4D94');
+  });
+
+  it('set_ring_size updates the ring size', () => {
+    ipcHandlers['set_ring_size'](null, 'small');
+    expect(ipcHandlers['get_ring_size']()).toBe('small');
+  });
+
+  it('save_settings persists settings to config', () => {
+    const settings = {
+      ringColor: '#34D058',
+      ringSize: 'large',
+      launchAtStartup: false,
+      closeToTray: true,
+      sendErrorReports: false,
+    };
+    ipcHandlers['save_settings'](null, settings);
+    const config = ipcHandlers['get_config']();
+    expect(config.settings).toEqual(settings);
+  });
+
+  it('get_app_version returns a version string', () => {
+    const result = ipcHandlers['get_app_version']();
+    expect(result).toBe('0.2.2');
   });
 });

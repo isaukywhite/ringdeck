@@ -32,6 +32,7 @@ export async function saveConfig() {
     await globalThis.api.saveConfig(getConfig());
     const btn = document.getElementById("save-btn");
     const status = document.getElementById("save-status");
+    if (!btn || !status) return;
     btn.textContent = "Saved";
     btn.classList.add("saved");
     status.textContent = "Changes saved";

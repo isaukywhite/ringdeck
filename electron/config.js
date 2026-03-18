@@ -106,6 +106,21 @@ function migrateConfig(cfg) {
     saveConfigToDisk(migrated);
     return migrated;
   }
+
+  // Migrate configs that lack a settings field
+  if (cfg.profiles && !cfg.settings) {
+    cfg.settings = {
+      ringColor: "#0A84FF",
+      ringSize: "medium",
+      activePreset: "nebula",
+      launchAtStartup: false,
+      closeToTray: true,
+      sendErrorReports: false,
+      customPresets: [],
+    };
+    saveConfigToDisk(cfg);
+  }
+
   return cfg;
 }
 
@@ -124,9 +139,14 @@ function loadConfig() {
   return structuredClone(defaults);
 }
 
-function saveConfigToDisk(cfg) {
-  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+async function saveConfigToDisk(cfg) {
+  try {
+    fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+    await fs.promises.writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  } catch (e) {
+    captureException(e);
+    console.error("[RingDeck] Config save error:", e);
+  }
 }
 
 // Initialize config

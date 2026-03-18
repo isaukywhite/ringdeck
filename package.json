@@ -52,7 +52,8 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "logo_ring_2_1.png"
     ],
     "directories": {
       "output": "out"

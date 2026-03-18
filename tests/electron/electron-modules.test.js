@@ -45,16 +45,22 @@ const mockElectron = {
     register: vi.fn(),
     unregister: vi.fn(),
   },
-  BrowserWindow: function BrowserWindow() {
+  BrowserWindow: function BrowserWindow(opts) {
     this.loadFile = vi.fn();
     this.on = vi.fn();
+    this.once = vi.fn();
     this.show = vi.fn();
     this.hide = vi.fn();
     this.focus = vi.fn();
     this.setBounds = vi.fn();
     this.isVisible = vi.fn().mockReturnValue(false);
     this.isDestroyed = vi.fn().mockReturnValue(false);
-    this.webContents = { executeJavaScript: vi.fn() };
+    this.webContents = {
+      executeJavaScript: vi.fn(),
+      send: vi.fn(),
+      on: vi.fn((event, cb) => { if (event === 'did-finish-load') cb(); }),
+      once: vi.fn((event, cb) => { if (event === 'did-finish-load') cb(); }),
+    };
   },
   screen: {
     getCursorScreenPoint: vi.fn(() => ({ x: 500, y: 500 })),
@@ -256,8 +262,11 @@ describe('electron/config', () => {
     expect(config.getActiveProfileIndex()).toBe(3);
   });
 
-  it('saveConfigToDisk writes file', () => {
-    config.saveConfigToDisk({ profiles: [{ id: 'x', name: 'X', shortcut: '', slices: [] }] });
+  it('saveConfigToDisk writes file', async () => {
+    // Wait for any in-flight async writes from module initialization
+    await new Promise(r => setTimeout(r, 50));
+    try { fs.unlinkSync(configPath); } catch {}
+    await config.saveConfigToDisk({ profiles: [{ id: 'x', name: 'X', shortcut: '', slices: [] }] });
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(raw.profiles[0].name).toBe('X');
   });
@@ -502,10 +511,12 @@ describe('electron/windows', () => {
     expect(ringWin.hide).toHaveBeenCalled();
   });
 
-  it('showRingAtCursor sends slices to ring window via executeJavaScript', () => {
+  it('showRingAtCursor sends ring data to ring window via IPC', () => {
     windows.showRingAtCursor(0);
     const ringWin = windows.getRingWindow();
-    expect(ringWin.webContents.executeJavaScript).toHaveBeenCalled();
+    expect(ringWin.webContents.send).toHaveBeenCalledWith('ring-data', expect.objectContaining({
+      slices: expect.any(Array),
+    }));
     expect(ringWin.show).toHaveBeenCalled();
     expect(ringWin.focus).toHaveBeenCalled();
     expect(ringWin.setBounds).toHaveBeenCalledWith(expect.objectContaining({

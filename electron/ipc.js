@@ -9,6 +9,8 @@ const { registerAllShortcuts } = require("./shortcuts");
 
 // ─── IPC ───
 
+ipcMain.handle("get_app_version", () => app.getVersion());
+
 ipcMain.handle("get_telemetry_consent", () => getSentryEnabled());
 
 ipcMain.handle("set_telemetry_consent", (_e, consent) => {
@@ -28,6 +30,10 @@ ipcMain.handle("get_active_profile", () => {
 });
 
 ipcMain.handle("save_config", (_e, newConfig) => {
+  // Preserve settings from main process (renderer may have stale copy)
+  // Deep copy to avoid race condition with concurrent saveSettings calls
+  const config = getConfig();
+  newConfig.settings = JSON.parse(JSON.stringify(config.settings || {}));
   saveConfigToDisk(newConfig);
   setConfig(newConfig);
 
@@ -35,14 +41,9 @@ ipcMain.handle("save_config", (_e, newConfig) => {
   registerAllShortcuts();
 
   // Update ring window live with active profile
-  const ringWindow = getRingWindow();
+  const { sendRingData } = require("./windows");
   const activeProfileIndex = getActiveProfileIndex();
-  if (ringWindow && newConfig.profiles[activeProfileIndex]) {
-    const json = JSON.stringify(newConfig.profiles[activeProfileIndex].slices);
-    ringWindow.webContents.executeJavaScript(
-      `window.__updateSlices(${json})`
-    );
-  }
+  sendRingData(activeProfileIndex);
 });
 
 ipcMain.handle("execute_action", (_e, index) => {
@@ -61,11 +62,28 @@ ipcMain.handle("hide_ring", () => {
 });
 
 ipcMain.handle("get_file_icon", async (_e, filePath) => {
-  // app.getFileIcon crashes on macOS 26 + Electron 35 (native V8 SIGTRAP)
-  // Use nativeImage.createFromPath for .app bundles on macOS instead
   try {
-    if (process.platform === "darwin" && filePath.endsWith(".app")) {
-      const icnsPath = path.join(filePath, "Contents", "Resources");
+    let resolvedPath = filePath;
+
+    // Resolve .lnk shortcuts on Windows to their target exe
+    if (process.platform === "win32" && filePath.toLowerCase().endsWith(".lnk")) {
+      try {
+        const { execSync } = require("node:child_process");
+        const ps = `(New-Object -ComObject WScript.Shell).CreateShortcut('${filePath.replace(/'/g, "''")}').TargetPath`;
+        const target = execSync(`powershell -NoProfile -Command "${ps}"`, {
+          encoding: "utf8",
+          windowsHide: true,
+          timeout: 5000,
+        }).trim();
+        if (target && fs.existsSync(target)) {
+          resolvedPath = target;
+        }
+      } catch (_) { /* .lnk resolution failed, use original path */ }
+    }
+
+    // macOS: .app bundles
+    if (process.platform === "darwin" && resolvedPath.endsWith(".app")) {
+      const icnsPath = path.join(resolvedPath, "Contents", "Resources");
       if (fs.existsSync(icnsPath)) {
         const files = fs.readdirSync(icnsPath);
         const icns = files.find((f) => f.endsWith(".icns"));
@@ -78,8 +96,16 @@ ipcMain.handle("get_file_icon", async (_e, filePath) => {
       }
       return null;
     }
-    const icon = await app.getFileIcon(filePath, { size: "large" });
-    return icon.toDataURL();
+
+    const icon = await app.getFileIcon(resolvedPath, { size: "large" });
+    if (icon && !icon.isEmpty()) {
+      const dataUrl = icon.toDataURL();
+      // Validate that the data URL is actually an image
+      if (dataUrl && dataUrl.startsWith("data:image/")) {
+        return dataUrl;
+      }
+    }
+    return null;
   } catch (e) {
     captureException(e, { filePath });
     return null;
@@ -130,6 +156,70 @@ ipcMain.handle("open_file_dialog", async () => {
     captureException(e);
     console.error("[RingDeck] open_file_dialog error:", e);
     return null;
+  }
+});
+
+// ─── Ring appearance ───
+
+ipcMain.handle("get_ring_color", () => {
+  const config = getConfig();
+  return (config.settings && config.settings.ringColor) || "#0A84FF";
+});
+
+ipcMain.handle("get_ring_size", () => {
+  const config = getConfig();
+  return (config.settings && config.settings.ringSize) || "medium";
+});
+
+ipcMain.handle("set_ring_color", (_e, hex) => {
+  const config = getConfig();
+  if (!config.settings) config.settings = {};
+  config.settings.ringColor = hex;
+  saveConfigToDisk(config);
+});
+
+ipcMain.handle("set_ring_size", (_e, size) => {
+  const config = getConfig();
+  if (!config.settings) config.settings = {};
+  config.settings.ringSize = size;
+  saveConfigToDisk(config);
+
+  // Resize ring window immediately if it exists
+  const ringWindow = getRingWindow();
+  if (ringWindow && !ringWindow.isDestroyed() && ringWindow.isVisible()) {
+    const RING_SIZES = require("./windows").RING_SIZES;
+    const winSize = RING_SIZES[size] || 550;
+    const bounds = ringWindow.getBounds();
+    const cx = bounds.x + Math.round(bounds.width / 2);
+    const cy = bounds.y + Math.round(bounds.height / 2);
+    const half = Math.round(winSize / 2);
+    ringWindow.setBounds({ x: cx - half, y: cy - half, width: winSize, height: winSize });
+  }
+});
+
+ipcMain.handle("save_settings", (_e, settings) => {
+  const config = getConfig();
+  const prevSettings = config.settings || {};
+  config.settings = settings;
+  saveConfigToDisk(config);
+
+  // Apply launch at startup
+  if (settings.launchAtStartup !== prevSettings.launchAtStartup) {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: !!settings.launchAtStartup,
+        name: "RingDeck",
+      });
+    } catch (e) {
+      captureException(e);
+    }
+  }
+
+  // Apply error reporting
+  if (settings.sendErrorReports !== prevSettings.sendErrorReports) {
+    const enabled = !!settings.sendErrorReports;
+    setSentryEnabled(enabled);
+    saveTelemetryConsent(enabled);
   }
 });
 

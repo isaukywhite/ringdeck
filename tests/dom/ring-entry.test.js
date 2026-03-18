@@ -9,6 +9,9 @@ globalThis.api = {
   executeAction: vi.fn(),
   executeSubmenuAction: vi.fn(),
   hideRing: vi.fn(),
+  onRingData: vi.fn(),
+  getRingColor: vi.fn().mockResolvedValue('#0A84FF'),
+  getRingSize: vi.fn().mockResolvedValue('medium'),
 };
 
 // Mock canvas
@@ -44,16 +47,9 @@ describe('src/ring.js entry point', () => {
     expect(globalThis.api.getActiveProfile).toHaveBeenCalled();
   });
 
-  it('__updateSlices updates the ring', async () => {
+  it('onRingData callback is registered', async () => {
     await import('../../src/ring.js');
     await new Promise(r => setTimeout(r, 50));
-
-    const newSlices = [
-      { icon: 'heart', action: { type: 'Script', command: 'test2' } },
-      { icon: 'bolt', action: { type: 'Script', command: 'test3' } },
-    ];
-    globalThis.__updateSlices(newSlices);
-    const nodes = document.querySelectorAll('.ring-node');
-    expect(nodes.length).toBe(2);
+    expect(globalThis.api.onRingData).toHaveBeenCalled();
   });
 });

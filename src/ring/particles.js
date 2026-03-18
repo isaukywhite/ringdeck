@@ -4,7 +4,9 @@ import {
 import {
   getHoveredIndex, getSlices,
   getParticleAnim, setParticleAnim,
+  getCurrentPalette,
 } from './state.js';
+import { generateRingPalette } from '../color-engine.js';
 
 export function startParticles() {
   if (getParticleAnim()) cancelAnimationFrame(getParticleAnim());
@@ -16,13 +18,9 @@ export function startParticles() {
   const particles = [];
   const NUM = 24;
 
-  const PARTICLE_COLORS = [
-    [45, 27, 105],
-    [61, 42, 124],
-    [10, 132, 255],
-    [79, 209, 255],
-    [26, 14, 62],
-  ];
+  const fallback = generateRingPalette('#0A84FF');
+  const palette = getCurrentPalette() || fallback;
+  const PARTICLE_COLORS = palette.particleColors;
 
   for (let i = 0; i < NUM; i++) {
     particles.push({
@@ -60,9 +58,10 @@ export function startParticles() {
         if (diff < spread) {
           const t = 1 - diff / spread;
           alpha = Math.min(1, alpha + 0.45 * t);
-          r = Math.round(r + (10 - r) * t * 0.6);
-          g = Math.round(g + (132 - g) * t * 0.6);
-          b = Math.round(b + (255 - b) * t * 0.6);
+          const lerpTarget = (getCurrentPalette() || fallback).accentRgb;
+          r = Math.round(r + (lerpTarget[0] - r) * t * 0.6);
+          g = Math.round(g + (lerpTarget[1] - g) * t * 0.6);
+          b = Math.round(b + (lerpTarget[2] - b) * t * 0.6);
         }
       }
 

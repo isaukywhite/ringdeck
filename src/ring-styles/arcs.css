@@ -15,8 +15,8 @@
   stroke-width: 3;
   stroke-linecap: round;
   opacity: 0;
-  filter: drop-shadow(0 0 8px rgba(10, 132, 255, 0.7))
-          drop-shadow(0 0 3px rgba(45, 27, 105, 0.5));
+  filter: drop-shadow(0 0 8px rgba(var(--glow-rgb), 0.7))
+          drop-shadow(0 0 3px rgba(var(--purple-rgb), 0.5));
   transition: opacity 0.25s cubic-bezier(0.22, 0.68, 0, 1);
 }
 
@@ -38,7 +38,7 @@
 
 .ring-arc-glow {
   fill: none;
-  stroke: rgba(45, 27, 105, 0.35);
+  stroke: rgba(var(--purple-rgb), 0.35);
   stroke-width: 14;
   stroke-linecap: round;
   opacity: 0;
