@@ -5,7 +5,11 @@ const { captureException } = require("./telemetry");
 
 // ─── Config ───
 
-const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
+// Detect portable mode via electron-builder env var
+const isPortable = !!process.env.PORTABLE_EXECUTABLE_DIR;
+const CONFIG_PATH = isPortable
+  ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, "config.json")
+  : path.join(app.getPath("userData"), "config.json");
 
 let config = null;
 let activeProfileIndex = 0;
@@ -17,72 +21,85 @@ function getDefaultConfig() {
   if (platform === "win32") {
     slices = [
       {
-        label: "Terminal",
-        icon: "terminal",
-        action: {
-          type: "Program",
-          path: "wt.exe",
-          args: [],
-        },
+        label: "Play / Pause",
+        icon: "play-pause",
+        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"(New-Object -ComObject WScript.Shell).SendKeys([char]179)\"" }
       },
       {
-        label: "Browser",
-        icon: "globe",
-        action: {
-          type: "Program",
-          path: String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`,
-          args: [],
-        },
+        label: "SnapCodex Quick",
+        icon: "bolt",
+        action: { type: "Program", path: "C:\\APP-Portable\\snapcodex\\snapcodex.exe", args: ["--quick"] }
       },
+      {
+        label: "Next Track",
+        icon: "forward",
+        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"(New-Object -ComObject WScript.Shell).SendKeys([char]176)\"" }
+      },
+      {
+        label: "Brain",
+        icon: "beaker",
+        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"cd 'C:\\Documentos-mm\\Work-git\\BIG-BRAIN-GIT'; Start-Process pwsh -ArgumentList '-NoExit', '-Command', 'cd C:\\Documentos-mm\\Work-git\\BIG-BRAIN-GIT; gemini'\"" }
+      },
+      {
+        label: "Hub de IA",
+        icon: "sparkles",
+        action: {
+          type: "Submenu",
+          slices: [
+            {
+              label: "Comet Perplexity",
+              icon: "magnifying-glass-circle",
+              action: { type: "OpenUrl", url: "https://www.perplexity.ai/", browser: "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe" }
+            },
+            {
+              label: "Comet Manus",
+              icon: "cpu-chip",
+              action: { type: "OpenUrl", url: "https://manus.im/", browser: "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe" }
+            },
+            {
+              label: "Comet Gemini",
+              icon: "chat-bubble-left-ellipsis",
+              action: { type: "OpenUrl", url: "https://gemini.google.com/app", browser: "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe" }
+            }
+          ]
+        }
+      },
+      {
+        label: "Jezebel CLI",
+        icon: "terminal",
+        action: { type: "Program", path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe", args: [] }
+      },
+      {
+        label: "Previous Track",
+        icon: "backward",
+        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"(New-Object -ComObject WScript.Shell).SendKeys([char]177)\"" }
+      },
+      {
+        label: "Mute Mic",
+        icon: "microphone",
+        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"$code = '[DllImport(`\"user32.dll`\")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, uint dwExtraInfo);'; $kb = Add-Type -MemberDefinition $code -Name 'KB' -PassThru; $kb::keybd_event(173, 0, 0, 0)\"" }
+      }
     ];
   } else if (platform === "linux") {
     slices = [
-      {
-        label: "Terminal",
-        icon: "terminal",
-        action: {
-          type: "Script",
-          command: "x-terminal-emulator",
-        },
-      },
-      {
-        label: "Browser",
-        icon: "globe",
-        action: {
-          type: "Script",
-          command: "xdg-open https://google.com",
-        },
-      },
+      { label: "Terminal", icon: "terminal", action: { type: "Script", command: "x-terminal-emulator" } },
+      { label: "Browser", icon: "globe", action: { type: "Script", command: "xdg-open https://google.com" } }
     ];
   } else {
-    // macOS
     slices = [
-      {
-        label: "Terminal",
-        icon: "terminal",
-        action: {
-          type: "Program",
-          path: "/System/Applications/Utilities/Terminal.app",
-          args: [],
-        },
-      },
-      {
-        label: "Browser",
-        icon: "globe",
-        action: {
-          type: "Program",
-          path: "/Applications/Safari.app",
-          args: [],
-        },
-      },
+      { label: "Terminal", icon: "terminal", action: { type: "Program", path: "/System/Applications/Utilities/Terminal.app", args: [] } },
+      { label: "Browser", icon: "globe", action: { type: "Program", path: "/Applications/Safari.app", args: [] } }
     ];
   }
 
   return {
+    mouseBindings: [
+      { button: 4, profileId: "hellring" }
+    ],
     profiles: [
       {
-        id: "default",
-        name: "Default",
+        id: "hellring",
+        name: "HellRing 🔥",
         shortcut: "Alt+Space",
         slices,
       },
@@ -119,6 +136,12 @@ function migrateConfig(cfg) {
       customPresets: [],
     };
     saveConfigToDisk(cfg);
+  }
+
+  // Migrate configs that lack a mouseBindings field (optional — empty array = no mouse triggers)
+  if (cfg.profiles && !cfg.mouseBindings) {
+    cfg.mouseBindings = [];
+    // No disk save here — only persist when user explicitly configures mouse buttons
   }
 
   return cfg;

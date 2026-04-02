@@ -7,6 +7,7 @@ require("./config");
 require("./actions");
 const { createMainWindow, createRingWindow, getMainWindow, setTray } = require("./windows");
 const { registerAllShortcuts } = require("./shortcuts");
+const mouseHook = require("./mouse-hook");
 require("./ipc");
 
 // ─── Tray ───
@@ -89,8 +90,13 @@ app.whenReady().then(async () => { // NOSONAR
   createRingWindow();
   setupTray();
   registerAllShortcuts();
+  mouseHook.start(); // Start listening for mouse button events (MX Master 4 etc.)
 });
 
 app.on("window-all-closed", () => {
   // Keep running in tray on macOS
+});
+
+app.on("before-quit", () => {
+  mouseHook.stop();
 });

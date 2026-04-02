@@ -1,0 +1,115 @@
+{
+  "_comment": "HellRing profile template — import this into RingDeck config.json manually or via the Import Profile feature.",
+  "_version": "1.0",
+  "_trigger": "Mouse button 4 (MX Master 4 lateral thumb/gesture button)",
+
+  "mouseBindings": [
+    {
+      "button": 4,
+      "profileId": "hellring"
+    }
+  ],
+
+  "profile": {
+    "id": "hellring",
+    "name": "HellRing 🔥",
+    "shortcut": "",
+    "slices": [
+
+      {
+        "_section": "Módulo A — Comet Actions (abrir URLs)",
+        "label": "Perplexity",
+        "icon": "magnifying-glass",
+        "action": {
+          "type": "OpenUrl",
+          "url": "https://www.perplexity.ai",
+          "browser": "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe"
+        }
+      },
+
+      {
+        "label": "Gemini",
+        "icon": "sparkles",
+        "action": {
+          "type": "OpenUrl",
+          "url": "https://gemini.google.com/app",
+          "browser": "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe"
+        }
+      },
+
+      {
+        "label": "Manus",
+        "icon": "cpu-chip",
+        "action": {
+          "type": "OpenUrl",
+          "url": "https://manus.im",
+          "browser": "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe"
+        }
+      },
+
+      {
+        "_section": "Módulo A — Comet Search (busca via clipboard)",
+        "label": "Search Perplexity",
+        "icon": "magnifying-glass-circle",
+        "action": {
+          "type": "ClipboardSearch",
+          "searchUrl": "https://www.perplexity.ai/search?q=${query}",
+          "browser": "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe"
+        }
+      },
+
+      {
+        "label": "Search Gemini",
+        "icon": "chat-bubble-left-ellipsis",
+        "action": {
+          "type": "ClipboardSearch",
+          "searchUrl": "https://gemini.google.com/app?q=${query}",
+          "browser": "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe"
+        }
+      },
+
+      {
+        "_section": "Módulo B — Terminais CLI",
+        "label": "Jezebel (PSH)",
+        "icon": "terminal",
+        "action": {
+          "type": "Program",
+          "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "args": []
+        }
+      },
+
+      {
+        "label": "Brain (BIG-BRAIN)",
+        "icon": "beaker",
+        "action": {
+          "type": "Script",
+          "_note": "Opens a VISIBLE pwsh window, navigates to BIG-BRAIN-GIT, starts gemini CLI. -NoExit keeps the terminal open for interaction.",
+          "command": "powershell -NoProfile -Command \"Start-Process 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -ArgumentList '-NoExit', '-NoProfile', '-Command', 'Set-Location ''C:\\Documentos-mm\\Work-git\\BIG-BRAIN-GIT''; gemini'\""
+        }
+      },
+
+      {
+        "_section": "Módulo C — SnapCodex integration",
+        "label": "Quick Note",
+        "icon": "bolt",
+        "action": {
+          "type": "Program",
+          "path": "C:\\APP-Portable\\snapcodex\\snapcodex.exe",
+          "args": ["--quick"]
+        }
+      },
+
+      {
+        "label": "Voice Note",
+        "icon": "microphone",
+        "action": {
+          "type": "Program",
+          "path": "C:\\APP-Portable\\snapcodex\\snapcodex.exe",
+          "args": ["--voice"]
+        }
+      }
+
+    ]
+  }
+}

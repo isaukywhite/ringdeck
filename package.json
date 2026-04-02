@@ -60,6 +60,7 @@
     }
   },
   "dependencies": {
-    "heroicons": "^2.2.0"
+    "heroicons": "^2.2.0",
+    "uiohook-napi": "^1.5.5"
   }
 }

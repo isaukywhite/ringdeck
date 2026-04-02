@@ -1,9 +1,20 @@
-const { shell } = require("electron");
+const { shell, clipboard } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 const { captureException } = require("./telemetry");
+
+// ─── Helpers ───
+
+/**
+ * Expands Windows environment variables in a path string.
+ * e.g. "%LOCALAPPDATA%\\Perplexity\\..." → "C:\\Users\\...\\Perplexity\\..."
+ */
+function expandEnvVars(str) {
+  if (!str || process.platform !== "win32") return str;
+  return str.replace(/%([^%]+)%/g, (_, key) => process.env[key] || `%${key}%`);
+}
 
 // ─── Actions ───
 
@@ -68,7 +79,63 @@ function executeAction(action) {
     case "Submenu":
       // Submenu navigation is handled by the ring renderer, not here
       break;
+
+    // ─── New action types for HellRing / Logi Options+ migration ───
+
+    case "OpenUrl": {
+      // Opens a URL in a specific browser process, or the system default.
+      // action.url     = "https://perplexity.ai"
+      // action.browser = "%LOCALAPPDATA%\\Perplexity\\...\\comet.exe"  (optional)
+      const resolvedBrowser = action.browser ? expandEnvVars(action.browser) : null;
+      if (resolvedBrowser && fs.existsSync(resolvedBrowser)) {
+        const child = spawn(resolvedBrowser, [action.url], { // NOSONAR — user-configured action
+          detached: true, stdio: "ignore"
+        });
+        child.on("error", (err) => { captureException(err); console.error("OpenUrl spawn error:", err); });
+        child.unref();
+      } else {
+        if (resolvedBrowser) {
+          console.warn(`[RingDeck] OpenUrl: browser not found at "${resolvedBrowser}", falling back to system default.`);
+        }
+        shell.openExternal(action.url).catch((err) => {
+          captureException(err);
+          console.error("OpenUrl openExternal error:", err);
+        });
+      }
+      break;
+    }
+
+    case "ClipboardSearch": {
+      // Reads current clipboard text, URL-encodes it, and opens a search URL.
+      // Replaces the old powershell copy-open-search.ps1 + SendKeys workaround.
+      // action.searchUrl = "https://perplexity.ai/?q=${query}"
+      // action.browser   = "%LOCALAPPDATA%\\...\\comet.exe"  (optional)
+      const text = clipboard.readText().trim();
+      if (!text) {
+        console.warn("[RingDeck] ClipboardSearch: clipboard is empty, nothing to search.");
+        break;
+      }
+      const encoded = encodeURIComponent(text);
+      const searchUrl = (action.searchUrl || "").replace("${query}", encoded);
+      const resolvedSearchBrowser = action.browser ? expandEnvVars(action.browser) : null;
+      if (resolvedSearchBrowser && fs.existsSync(resolvedSearchBrowser)) {
+        const child = spawn(resolvedSearchBrowser, [searchUrl], { // NOSONAR — user-configured action
+          detached: true, stdio: "ignore"
+        });
+        child.on("error", (err) => { captureException(err); console.error("ClipboardSearch spawn error:", err); });
+        child.unref();
+      } else {
+        if (resolvedSearchBrowser) {
+          console.warn(`[RingDeck] ClipboardSearch: browser not found at "${resolvedSearchBrowser}", falling back to system default.`);
+        }
+        shell.openExternal(searchUrl).catch((err) => {
+          captureException(err);
+          console.error("ClipboardSearch openExternal error:", err);
+        });
+      }
+      break;
+    }
   }
 }
 
-module.exports = { executeAction };
+module.exports = { executeAction, expandEnvVars };

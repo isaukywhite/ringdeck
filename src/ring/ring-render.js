@@ -124,16 +124,6 @@ export function buildSubRing(parentIndex) {
 
   let html = "";
 
-  // Back button at parent position (center of sub-ring)
-  const parentAngle = (2 * Math.PI * parentIndex) / parentN - Math.PI / 2;
-  const backX = CENTER + NODE_ORBIT * Math.cos(parentAngle);
-  const backY = CENTER + NODE_ORBIT * Math.sin(parentAngle);
-  html += `
-    <div class="sub-ring-back" data-action="back"
-         style="left:${backX}px;top:${backY}px">
-      ${resolveIcon('arrow-uturn-left')}
-    </div>`;
-
   // Child nodes
   const stagger = 0.04;
   for (let i = 0; i < n; i++) {
