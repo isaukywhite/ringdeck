@@ -1,0 +1,9 @@
+﻿# Council Lumina - Ignore patterns
+temp-old/
+.agent-context-mm/
+node_modules/
+.env
+secrets/
+dist/
+build/
+.git/
