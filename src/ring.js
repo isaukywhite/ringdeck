@@ -64,6 +64,11 @@ async function init() {
 globalThis.api.onRingData((data) => {
   if (data.color) applyRingColor(data.color);
   if (data.size) applyRingSize(data.size);
+  if (data.performanceMode) {
+    document.body.classList.add("lite-mode");
+  } else {
+    document.body.classList.remove("lite-mode");
+  }
 
   setSlices(data.slices);
   setActiveSubmenu(-1);
@@ -79,14 +84,14 @@ globalThis.api.onRingData((data) => {
   const ring = document.getElementById("ring");
   if (ring) {
     ring.classList.remove("appear");
-    void ring.offsetHeight;
-    ring.classList.add("appear");
+    // Use rAF to guarantee the browser processed the removal before re-adding
+    requestAnimationFrame(() => {
+      ring.classList.add("appear");
+    });
   }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  const ring = document.getElementById("ring");
-
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       // Pause particles when ring is hidden (save CPU)
@@ -95,14 +100,15 @@ document.addEventListener("DOMContentLoaded", () => {
         cancelAnimationFrame(anim);
         setParticleAnim(null);
       }
+      // Reset ring state immediately so it's clean for next show
+      const ring = document.getElementById("ring");
+      if (ring) ring.classList.remove("appear");
     } else {
       setHoveredIndex(-1);
       setActiveSubmenu(-1);
       setSubmenuHoveredIndex(-1);
-      ring.classList.remove("appear");
-      void ring.offsetHeight;
-      ring.classList.add("appear");
-      // Restart particles
+      // Don't trigger appear here — onRingData handles it.
+      // Just restart particles.
       startParticles();
     }
   });

@@ -9,3 +9,38 @@
 @import './ring-styles/dots.css';
 @import './ring-styles/particles.css';
 @import './ring-styles/submenu.css';
+
+/* Lite Mode (Performance) */
+body.lite-mode .ring-particles {
+  display: none !important;
+}
+body.lite-mode * {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  transition: none !important;
+}
+/* Keep entrance elements visible but skip their animations entirely */
+body.lite-mode #ring .ring-center,
+body.lite-mode #ring .ring-node,
+body.lite-mode #ring .ring-orbit {
+  animation: none !important;
+  opacity: 1 !important;
+}
+body.lite-mode #ring .ring-node {
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+body.lite-mode #ring .ring-center {
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+/* Sub-ring nodes also skip animation */
+body.lite-mode .sub-ring-node {
+  animation: none !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+  opacity: 1 !important;
+}
+body.lite-mode .sub-ring-back {
+  animation: none !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+  opacity: 1 !important;
+}
