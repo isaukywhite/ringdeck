@@ -3,7 +3,7 @@
   "description": "A radial action launcher for power users",
   "author": "isaukywhite",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.3.0",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite build && electron .",

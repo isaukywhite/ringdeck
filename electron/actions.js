@@ -65,15 +65,29 @@ function executeAction(action) {
         const child = spawn("open", args, { detached: true, stdio: "ignore" }); // NOSONAR — user-configured action
         child.on("error", (err) => { captureException(err); console.error("Program spawn error:", err); });
         child.unref();
+      } else if (platform === "win32" && action.terminal) {
+        // Interactive terminal mode: use 'start' to open a new visible console window.
+        // This is the same pattern used by Logi Options+ plugins — proven to work
+        // for PowerShell 7 + Gemini CLI, pwsh sessions, etc.
+        // 'start ""' creates a detached console window that survives Electron exit.
+        const { exec } = require("node:child_process");
+        const quotedPath = `"${action.path}"`;
+        const argsStr = (action.args || []).map(a => {
+          // Wrap args containing spaces in quotes
+          return a.includes(" ") || a.includes("'") ? `"${a}"` : a;
+        }).join(" ");
+        const cmd = `start "" ${quotedPath} ${argsStr}`;
+        console.log("[RingDeck] Terminal exec:", cmd);
+        exec(cmd, (err) => {
+          if (err) { captureException(err); console.error("Program terminal exec error:", err); }
+        });
       } else {
-        // Windows & Linux
+        // Windows & Linux (non-terminal / background programs)
         if (action.args && action.args.length > 0) {
-          // If we have arguments, openPath cannot send them. Use spawn detached.
           const child = spawn(action.path, action.args, { detached: true, stdio: "ignore" }); // NOSONAR
           child.on("error", (err) => { captureException(err); console.error("Program spawn error:", err); });
           child.unref();
         } else {
-          // No arguments -> fallback to reliable openPath
           shell.openPath(action.path).then((err) => {
             if (err) { captureException(new Error("shell.openPath: " + err)); console.error("shell.openPath error:", err); }
           });

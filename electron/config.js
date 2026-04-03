@@ -38,7 +38,12 @@ function getDefaultConfig() {
       {
         label: "Brain",
         icon: "beaker",
-        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"cd 'C:\\Documentos-mm\\Work-git\\BIG-BRAIN-GIT'; Start-Process pwsh -ArgumentList '-NoExit', '-Command', 'cd C:\\Documentos-mm\\Work-git\\BIG-BRAIN-GIT; gemini'\"" }
+        action: {
+          type: "Program",
+          path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          args: ["-NoExit", "-Command", "Set-Location 'C:\\Documentos-mm\\Work-git\\BIG-BRAIN-GIT'; gemini"],
+          terminal: true
+        }
       },
       {
         label: "Hub de IA",
@@ -67,7 +72,12 @@ function getDefaultConfig() {
       {
         label: "Jezebel CLI",
         icon: "terminal",
-        action: { type: "Program", path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe", args: [] }
+        action: {
+          type: "Program",
+          path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          args: ["-WorkingDirectory", "C:\\Documentos-mm\\Work-git\\Projetos\\snapcodex"],
+          terminal: true
+        }
       },
       {
         label: "Previous Track",
