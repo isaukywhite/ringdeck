@@ -1,0 +1,158 @@
+/* ─── Mouse Triggers Panel ─── */
+
+.mouse-triggers-section {
+  padding: 4px 0;
+}
+
+.mouse-triggers-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.mouse-triggers-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #f0f0f0);
+}
+
+.mouse-triggers-hint {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+
+.mouse-triggers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mouse-triggers-empty {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  font-style: italic;
+  padding: 4px 0;
+  margin: 0;
+}
+
+/* ─── Binding row ─── */
+
+.mouse-trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2, rgba(255,255,255,0.06));
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.mouse-trigger-btn-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #f0f0f0);
+  min-width: 160px;
+  flex-shrink: 0;
+}
+
+.mouse-trigger-arrow {
+  color: var(--text-secondary, #888);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.mouse-trigger-profile-select {
+  flex: 1;
+  background: var(--surface-3, rgba(255,255,255,0.08));
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 6px;
+  color: var(--text-primary, #f0f0f0);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.mouse-trigger-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.mouse-trigger-delete:hover {
+  color: #ff5f57;
+  background: rgba(255, 95, 87, 0.12);
+}
+
+/* ─── Capture button ─── */
+
+.mouse-triggers-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mouse-capture-btn {
+  background: var(--accent, #0A84FF);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.mouse-capture-btn:hover {
+  opacity: 0.88;
+}
+
+.mouse-capture-btn:active {
+  transform: scale(0.97);
+}
+
+.mouse-capture-status {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  transition: color 0.2s;
+}
+
+.mouse-capture-status.capturing {
+  color: #f5a623;
+  animation: pulse-text 1s ease-in-out infinite alternate;
+}
+
+.mouse-capture-status.captured {
+  color: #30d158;
+}
+
+@keyframes pulse-text {
+  from { opacity: 1; }
+  to   { opacity: 0.5; }
+}
+
+/* ─── Tip ─── */
+
+.mouse-triggers-tip {
+  font-size: 11.5px;
+  color: var(--text-secondary, #888);
+  line-height: 1.5;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--surface-2, rgba(255,255,255,0.04));
+  border-radius: 6px;
+  border-left: 3px solid var(--accent, #0A84FF);
+}
+
+.mouse-triggers-tip strong {
+  color: var(--text-primary, #f0f0f0);
+}

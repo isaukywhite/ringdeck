@@ -1,8 +1,7 @@
 import {
   CENTER,
   closestSlice as _closestSlice,
-  closestSubNode as _closestSubNode,
-  isNearBackButton as _isNearBackButton,
+  closestSubNode as _closestSubNode
 } from './geometry.js';
 import {
   getSlices, getHoveredIndex, setHoveredIndex,
@@ -20,9 +19,6 @@ function closestSubNode(mx, my) {
   return _closestSubNode(mx, my, getActiveSubmenu(), getSlices());
 }
 
-function isNearBackButton(mx, my) {
-  return _isNearBackButton(mx, my, getActiveSubmenu(), getSlices());
-}
 
 // ─── Submenu interaction helpers ───
 
@@ -38,21 +34,12 @@ export function highlightSubNode(subIdx) {
   }
 }
 
-export function highlightBackButton() {
-  setSubmenuHoveredIndex(-1);
-  const subRingEl = document.getElementById("sub-ring");
-  if (subRingEl) {
-    subRingEl.querySelectorAll(".sub-ring-node").forEach((el) => el.classList.remove("hovered"));
-    const back = subRingEl.querySelector(".sub-ring-back");
-    if (back) back.classList.add("hovered");
-  }
-}
 
 export function clearSubRingHover() {
   setSubmenuHoveredIndex(-1);
   const subRingEl = document.getElementById("sub-ring");
   if (subRingEl) {
-    subRingEl.querySelectorAll(".sub-ring-node, .sub-ring-back").forEach((el) => el.classList.remove("hovered"));
+    subRingEl.querySelectorAll(".sub-ring-node").forEach((el) => el.classList.remove("hovered"));
   }
 }
 
@@ -64,11 +51,6 @@ export function handleSubmenuMouseMove(mx, my) {
     return;
   }
 
-  // Check if hovering back button
-  if (isNearBackButton(mx, my)) {
-    highlightBackButton();
-    return;
-  }
 
   // Check if hovering a main ring node
   const mainIdx = closestSlice(mx, my);
@@ -113,13 +95,6 @@ export async function handleMouseUp(container) {
   if (activeSubmenu >= 0) {
     if (submenuHoveredIndex >= 0) {
       await executeSubmenuClick();
-      return;
-    }
-
-    // Check back button
-    const backEl = document.getElementById("sub-ring")?.querySelector(".sub-ring-back.hovered");
-    if (backEl) {
-      closeSubRing();
       return;
     }
   }
@@ -216,7 +191,13 @@ export function setupInteraction() {
   });
 
   // Click (mouseup) still works as fallback
-  container.addEventListener("mouseup", async () => {
+  container.addEventListener("mouseup", async (e) => {
+    if (e.button === 2) {
+      setHoveredIndex(-1);
+      closeSubRing();
+      await globalThis.api.hideRing();
+      return;
+    }
     await handleMouseUp(container);
   });
 
@@ -248,5 +229,11 @@ export function setupInteraction() {
       setHoveredIndex(-1);
       await globalThis.api.hideRing();
     }
+  });
+
+  globalThis.api.onHardwareTriggerReleased?.(async () => {
+    // Simulating a modifier release to reuse the same execution behavior 
+    // where hovered nodes are activated automatically on release.
+    await handleKeyUp({ key: "Control", ctrlKey: false, altKey: false, shiftKey: false, metaKey: false });
   });
 }
