@@ -23,7 +23,7 @@ function getDefaultConfig() {
       {
         label: "Play / Pause",
         icon: "play-pause",
-        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"(New-Object -ComObject WScript.Shell).SendKeys([char]179)\"" }
+        action: { type: "MediaKey", key: "play-pause" }
       },
       {
         label: "SnapCodex Quick",
@@ -33,7 +33,7 @@ function getDefaultConfig() {
       {
         label: "Next Track",
         icon: "forward",
-        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"(New-Object -ComObject WScript.Shell).SendKeys([char]176)\"" }
+        action: { type: "MediaKey", key: "next" }
       },
       {
         label: "Brain",
@@ -72,12 +72,12 @@ function getDefaultConfig() {
       {
         label: "Previous Track",
         icon: "backward",
-        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"(New-Object -ComObject WScript.Shell).SendKeys([char]177)\"" }
+        action: { type: "MediaKey", key: "prev" }
       },
       {
         label: "Mute Mic",
         icon: "microphone",
-        action: { type: "Script", command: "powershell -WindowStyle Hidden -Command \"$code = '[DllImport(`\"user32.dll`\")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, uint dwExtraInfo);'; $kb = Add-Type -MemberDefinition $code -Name 'KB' -PassThru; $kb::keybd_event(173, 0, 0, 0)\"" }
+        action: { type: "MediaKey", key: "mute" }
       }
     ];
   } else if (platform === "linux") {

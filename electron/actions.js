@@ -66,10 +66,59 @@ function executeAction(action) {
         child.on("error", (err) => { captureException(err); console.error("Program spawn error:", err); });
         child.unref();
       } else {
-        // Windows & Linux: use Electron shell.openPath (native, reliable)
-        shell.openPath(action.path).then((err) => {
-          if (err) { captureException(new Error("shell.openPath: " + err)); console.error("shell.openPath error:", err); }
+        // Windows & Linux
+        if (action.args && action.args.length > 0) {
+          // If we have arguments, openPath cannot send them. Use spawn detached.
+          const child = spawn(action.path, action.args, { detached: true, stdio: "ignore" }); // NOSONAR
+          child.on("error", (err) => { captureException(err); console.error("Program spawn error:", err); });
+          child.unref();
+        } else {
+          // No arguments -> fallback to reliable openPath
+          shell.openPath(action.path).then((err) => {
+            if (err) { captureException(new Error("shell.openPath: " + err)); console.error("shell.openPath error:", err); }
+          });
+        }
+      }
+      break;
+    }
+    case "MediaKey": {
+      // Native Windows media key simulation via keybd_event P/Invoke.
+      // WScript.Shell.SendKeys is unreliable for virtual media keys,
+      // especially with -WindowStyle Hidden. keybd_event works at kernel level.
+      //
+      // Virtual key codes:
+      //   VK_MEDIA_PLAY_PAUSE = 0xB3 (179)
+      //   VK_MEDIA_NEXT_TRACK = 0xB0 (176)
+      //   VK_MEDIA_PREV_TRACK = 0xB1 (177)
+      //   VK_MEDIA_STOP       = 0xB2 (178)
+      //   VK_VOLUME_MUTE      = 0xAD (173)
+      //   VK_VOLUME_DOWN      = 0xAE (174)
+      //   VK_VOLUME_UP        = 0xAF (175)
+      const keyMap = {
+        "play-pause": 0xB3,
+        "next":       0xB0,
+        "prev":       0xB1,
+        "stop":       0xB2,
+        "mute":       0xAD,
+        "vol-down":   0xAE,
+        "vol-up":     0xAF,
+      };
+      const vk = keyMap[action.key];
+      if (!vk) {
+        console.error(`[RingDeck] MediaKey: unknown key "${action.key}"`);
+        break;
+      }
+      if (platform === "win32") {
+        const ps = `$code = '[DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, uint dwExtraInfo);'; $kb = Add-Type -MemberDefinition $code -Name 'KB${Date.now()}' -PassThru; $kb::keybd_event(${vk}, 0, 1, 0); $kb::keybd_event(${vk}, 0, 3, 0)`;
+        const child = spawn("powershell.exe", [ // NOSONAR — media key P/Invoke
+          "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps
+        ], {
+          detached: true, stdio: "ignore", shell: false, windowsHide: true
         });
+        child.on("error", (err) => { captureException(err); console.error("MediaKey spawn error:", err); });
+        child.unref();
+      } else {
+        console.warn("[RingDeck] MediaKey: not implemented for", platform);
       }
       break;
     }
