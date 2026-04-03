@@ -18,5 +18,15 @@ contextBridge.exposeInMainWorld("api", {
   saveSettings: (settings) => ipcRenderer.invoke("save_settings", settings),
   getAppVersion: () => ipcRenderer.invoke("get_app_version"),
   onRingData: (cb) => ipcRenderer.on("ring-data", (_e, data) => cb(data)),
+  // Mouse button bindings (HellRing / MX Master 4 support)
+  getMouseBindings: () => ipcRenderer.invoke("get_mouse_bindings"),
+  saveMouseBindings: (bindings) => ipcRenderer.invoke("save_mouse_bindings", bindings),
+  startMouseCapture: () => ipcRenderer.invoke("start_mouse_capture"),
+  stopMouseCapture: () => ipcRenderer.invoke("stop_mouse_capture"),
+  onMouseButtonCaptured: (cb) => ipcRenderer.on("mouse_button_captured", (_e, buttonId) => cb(buttonId)),
+  onHardwareTriggerReleased: (cb) => ipcRenderer.on("hardware_trigger_released", () => cb()),
+  // Window controls (frameless title bar)
+  windowMinimize: () => ipcRenderer.invoke("window_minimize"),
+  windowMaximize: () => ipcRenderer.invoke("window_maximize"),
+  windowClose: () => ipcRenderer.invoke("window_close"),
 });
-

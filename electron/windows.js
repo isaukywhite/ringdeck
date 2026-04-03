@@ -33,8 +33,13 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 700,
     height: 550,
+    minWidth: 600,
+    minHeight: 450,
     show: false,
+    frame: false,
+    transparent: false,
     icon: path.join(__dirname, "..", "logo_ring_2_1.png"),
+    backgroundColor: "#0e0a1a",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -43,6 +48,12 @@ function createMainWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+  mainWindow.setMenuBarVisibility(false);
+  mainWindow.setMenu(null);
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+  });
 
   mainWindow.on("close", (e) => {
     if (isQuitting) return;
@@ -103,6 +114,7 @@ function sendRingData(profileIndex) {
       slices: profile.slices,
       color: getRingColor(),
       size: (config.settings && config.settings.ringSize) || "medium",
+      performanceMode: (config.settings && config.settings.performanceMode) || false,
     });
   }
 }
@@ -125,8 +137,21 @@ function showRingAtCursor(profileIndex) {
   ringWindow.setBounds({ x, y, width: winSize, height: winSize });
 
   sendRingData(profileIndex);
-  ringWindow.show();
-  ringWindow.focus();
+
+  const config = getConfig();
+  const delayMs = config.settings?.ringDelayMs !== undefined ? config.settings.ringDelayMs : 30;
+
+  if (delayMs > 0) {
+    setTimeout(() => {
+      if (ringWindow && !ringWindow.isDestroyed()) {
+        ringWindow.show();
+        ringWindow.focus();
+      }
+    }, delayMs);
+  } else {
+    ringWindow.show();
+    ringWindow.focus();
+  }
 }
 
 function getMainWindow() {

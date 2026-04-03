@@ -15,6 +15,92 @@ import { saveConfig } from './config.js';
 import { addProfile, deleteProfile } from './profiles.js';
 import { openIconPicker, openSubIconPicker } from './icon-picker.js';
 
+// ─── Mouse trigger area (left pane) ───
+
+const _BLOCKED_BTN = new Set([1, 2]);
+let _mouseCaptureActive = false;
+
+function bindMouseTriggerAreaEvents() {
+  const box      = document.getElementById('mouse-trigger-box');
+  const display  = document.getElementById('mouse-trigger-display');
+  const action   = document.getElementById('mouse-trigger-action');
+  const status   = document.getElementById('mouse-trigger-status');
+  const clearBtn = document.getElementById('clear-mouse-trigger-btn');
+
+  if (!box) return; // not in DOM (shouldn't happen)
+
+  const BUTTON_LABELS = {
+    3: 'Middle / Scroll', 4: 'Side button (Thumb)', 5: 'Side button (Forward)',
+  };
+  const labelOf = (id) => BUTTON_LABELS[id] || `Button ${id}`;
+
+  function cancelCapture() {
+    _mouseCaptureActive = false;
+    action.textContent = 'Capture';
+    action.classList.remove('recording');
+    if (status) { status.textContent = ''; status.className = 'mouse-capture-status'; }
+    globalThis.api.stopMouseCapture?.();
+  }
+
+  async function handleCapturedButton(buttonId) {
+    if (_BLOCKED_BTN.has(buttonId)) {
+      if (status) {
+        status.textContent = '⚠️ Left/Right not allowed — press a side button';
+        status.className = 'mouse-capture-status';
+      }
+      // Re-arm for next press
+      await globalThis.api.startMouseCapture?.();
+      globalThis.api.onMouseButtonCaptured?.(handleCapturedButton);
+      return;
+    }
+
+    _mouseCaptureActive = false;
+    action.textContent = 'Capture';
+    action.classList.remove('recording');
+
+    // Update config: remove any existing binding for this profile, add new one
+    const config = getConfig();
+    const profile = activeProfile();
+    if (!config.mouseBindings) config.mouseBindings = [];
+    // Remove old binding for this profile (if any)
+    config.mouseBindings = config.mouseBindings.filter(b => b.profileId !== profile.id);
+    // Remove any binding for this button on other profiles (one button = one profile)
+    config.mouseBindings = config.mouseBindings.filter(b => b.button !== buttonId);
+    config.mouseBindings.push({ button: buttonId, profileId: profile.id });
+
+    await globalThis.api.saveMouseBindings(config.mouseBindings);
+
+    if (display) display.textContent = labelOf(buttonId);
+    if (status) { status.textContent = `✓ ${labelOf(buttonId)} saved`; status.className = 'mouse-capture-status captured'; }
+    setTimeout(() => { if (status) { status.textContent = ''; status.className = 'mouse-capture-status'; } }, 2000);
+
+    render(); // refresh to show "Clear trigger" button
+  }
+
+  box.addEventListener('click', async () => {
+    if (_mouseCaptureActive) { cancelCapture(); return; }
+
+    _mouseCaptureActive = true;
+    action.textContent = 'Cancel';
+    action.classList.add('recording');
+    if (status) { status.textContent = 'Press a mouse button…'; status.className = 'mouse-capture-status capturing'; }
+
+    await globalThis.api.startMouseCapture?.();
+    globalThis.api.onMouseButtonCaptured?.(handleCapturedButton);
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const config = getConfig();
+      const profile = activeProfile();
+      config.mouseBindings = (config.mouseBindings || []).filter(b => b.profileId !== profile.id);
+      await globalThis.api.saveMouseBindings(config.mouseBindings);
+      render();
+    });
+  }
+}
+
 // ─── Load app version once ───
 
 globalThis.api.getAppVersion().then(v => {
@@ -159,6 +245,39 @@ function bindSettingsEvents() {
       config.settings.sendErrorReports = errorToggle.checked;
       setSentryEnabled(errorToggle.checked);
       await globalThis.api.setTelemetryConsent(errorToggle.checked);
+      await globalThis.api.saveSettings(config.settings);
+      showSaveToast();
+    });
+  }
+  const performanceToggle = document.getElementById('toggle-performance');
+  if (performanceToggle) {
+    performanceToggle.addEventListener('change', async () => {
+      if (!config.settings) config.settings = {};
+      config.settings.performanceMode = performanceToggle.checked;
+      await globalThis.api.saveSettings(config.settings);
+      showSaveToast();
+    });
+  }
+  const activationSelect = document.getElementById('activation-mode-select');
+  if (activationSelect) {
+    activationSelect.addEventListener('change', async () => {
+      if (!config.settings) config.settings = {};
+      config.settings.activationMode = activationSelect.value;
+      await globalThis.api.saveSettings(config.settings);
+      showSaveToast();
+    });
+  }
+
+  // Ring delay slider
+  const delaySlider = document.getElementById('ring-delay-slider');
+  const delayVal = document.getElementById('ring-delay-val');
+  if (delaySlider && delayVal) {
+    delaySlider.addEventListener('input', (e) => {
+      delayVal.textContent = e.target.value + 'ms';
+    });
+    delaySlider.addEventListener('change', async (e) => {
+      if (!config.settings) config.settings = {};
+      config.settings.ringDelayMs = parseInt(e.target.value, 10);
       await globalThis.api.saveSettings(config.settings);
       showSaveToast();
     });
@@ -392,11 +511,26 @@ export function bindSubActionEvents(parentIdx, parentSlice) {
 // ─── Main bindEvents ───
 
 export function bindEvents() {
+  // Custom titlebar window controls
+  document.getElementById('titlebar-minimize')?.addEventListener('click', () => globalThis.api.windowMinimize());
+  document.getElementById('titlebar-maximize')?.addEventListener('click', () => globalThis.api.windowMaximize());
+  document.getElementById('titlebar-close')?.addEventListener('click', () => globalThis.api.windowClose());
+
   // Config nav tabs (Actions / Settings)
   document.querySelectorAll('.config-nav-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       setActiveView(tab.dataset.view);
       render();
+    });
+  });
+
+  // Input Nav tabs (Keyboard / Mouse)
+  document.querySelectorAll('.input-tab').forEach(tab => {
+    import('./state.js').then(m => {
+      tab.addEventListener('click', () => {
+        m.setActiveInputTab(tab.dataset.input);
+        render();
+      });
     });
   });
 
@@ -414,6 +548,9 @@ export function bindEvents() {
       }
     });
   }
+
+  // Mouse trigger (always in left pane — same visual row as shortcut)
+  bindMouseTriggerAreaEvents();
 
   // If settings view, bind settings events and return
   if (getActiveView() === 'settings') {

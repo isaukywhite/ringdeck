@@ -2,9 +2,10 @@ import { ICON_MAP, ICON_CATEGORIES, resolveIcon } from '../icons.js';
 import { appName, actionSummary, escAttr, sliceIcon } from './utils.js';
 import { SUBMENU_TEMPLATES } from './templates.js';
 import { BUILTIN_PRESETS } from '../color-engine.js';
+import { renderMouseTriggerArea } from './mouse-triggers.js';
 import {
   getConfig, activeProfile, getExpandedSlice, getSentryEnabled,
-  getActiveProfileIndex, getActiveView, getAppVersion,
+  getActiveProfileIndex, getActiveView, getAppVersion, getActiveInputTab
 } from './state.js';
 
 // Registration slot for bindEvents — set by events.js to break the circular dependency
@@ -283,7 +284,10 @@ export function renderSettings() {
   const launchAtStartup = settings.launchAtStartup || false;
   const closeToTray = settings.closeToTray !== false;
   const sendErrorReports = settings.sendErrorReports !== false;
+  const performanceMode = settings.performanceMode || false;
+  const activationMode = settings.activationMode || 'click';
   const currentColor = settings.ringColor || '#0A84FF';
+  const ringDelayMs = settings.ringDelayMs !== undefined ? settings.ringDelayMs : 30;
 
   const builtinSwatches = BUILTIN_PRESETS.map(p => {
     const isActive = activePreset === p.id;
@@ -386,6 +390,39 @@ export function renderSettings() {
             <input type="checkbox" id="toggle-error-reports" ${sendErrorReports ? 'checked' : ''} />
             <span class="toggle-slider"></span>
           </label>
+          <label class="setting-toggle">
+            <div class="toggle-info">
+              <span class="toggle-label">Lite Mode (Performance)</span>
+              <span class="toggle-desc" style="color:var(--text-secondary); font-size:11px;">Remove blur e glow para FPS máximo em PCs básicos.</span>
+            </div>
+            <input type="checkbox" id="toggle-performance" ${performanceMode ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <div class="slider-list" style="padding-top: 15px; margin-top: 15px; border-top: 1px solid var(--border-color);">
+          <label class="setting-slider-row" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding-bottom: 10px;">
+            <div class="toggle-info">
+              <span class="toggle-label">Activation Mode</span>
+              <span class="toggle-desc" style="color: var(--text-secondary); font-size: 11px;">Como o anel reage ao Botão do Mouse.</span>
+            </div>
+            <select id="activation-mode-select" style="background:var(--bg-lighter); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; padding:4px 8px; cursor:pointer;">
+              <option value="click" ${activationMode === 'click' ? 'selected' : ''}>Ao Clicar no Item</option>
+              <option value="release" ${activationMode === 'release' ? 'selected' : ''}>Ao Soltar o Gatilho</option>
+            </select>
+          </label>
+        
+        <div class="slider-list" style="padding-top: 15px; margin-top: 15px; border-top: 1px solid var(--border-color);">
+          <label class="setting-slider-row" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+            <div class="toggle-info">
+              <span class="toggle-label">Animation Delay (Flicker Fix)</span>
+              <span class="toggle-desc" style="color: var(--text-secondary); font-size: 11px;">Delay ring appearance (ms) to hide window glitches.</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" id="ring-delay-slider" min="0" max="250" step="10" value="${ringDelayMs}" style="cursor: pointer; accent-color: var(--primary);" />
+              <span id="ring-delay-val" style="min-width: 35px; text-align: right; font-size: 12px; color: var(--text-secondary);">${ringDelayMs}ms</span>
+            </div>
+          </label>
         </div>
       </div>
 
@@ -437,7 +474,8 @@ export function renderActionsView(profile, cards, n) {
 export function render() {
   const app = document.querySelector("#app");
   const profile = activeProfile();
-  if (!profile) return;
+  const config = getConfig();
+  if (!profile || !config) return;
 
   const activeView = getActiveView();
 
@@ -446,6 +484,20 @@ export function render() {
   const cards = slices.map((s, i) => renderActionCard(s, i)).join("");
 
   app.innerHTML = `
+    <div class="custom-titlebar" id="custom-titlebar">
+      <div class="titlebar-drag-area"></div>
+      <div class="titlebar-controls">
+        <button class="titlebar-btn titlebar-minimize" id="titlebar-minimize" title="Minimize">
+          <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+        </button>
+        <button class="titlebar-btn titlebar-maximize" id="titlebar-maximize" title="Maximize">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <button class="titlebar-btn titlebar-close" id="titlebar-close" title="Close">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
     <div class="config-layout">
       <div class="left-pane">
         <div class="app-brand">
@@ -456,14 +508,23 @@ export function render() {
 
         ${renderPreview()}
 
+        <div class="trigger-section">
+          <div class="shortcut-label">Ring Trigger</div>
+          <div class="input-tabs">
+            <button class="input-tab${getActiveInputTab() === 'keyboard' ? ' active' : ''}" data-input="keyboard">⌨️ Keyboard</button>
+            <button class="input-tab${getActiveInputTab() === 'mouse' ? ' active' : ''}" data-input="mouse">🖱️ Mouse</button>
+          </div>
+        </div>
+
+        ${getActiveInputTab() === 'keyboard' ? `
         <div class="shortcut-area">
-          <div class="shortcut-label">Activation shortcut</div>
           <div class="shortcut-box" id="shortcut-box">
             <span class="shortcut-keys" id="shortcut-display">${profile.shortcut || "Not set"}</span>
             <span class="shortcut-action" id="shortcut-action">Record</span>
           </div>
           ${profile.shortcut ? `<button class="btn-clear-shortcut" id="clear-shortcut-btn">Clear shortcut</button>` : ''}
         </div>
+        ` : renderMouseTriggerArea(profile, config)}
       </div>
 
       <div class="right-pane">
