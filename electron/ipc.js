@@ -6,6 +6,7 @@ const { getConfig, setConfig, getActiveProfileIndex, saveConfigToDisk } = requir
 const { executeAction } = require("./actions");
 const { getMainWindow, getRingWindow } = require("./windows");
 const { registerAllShortcuts } = require("./shortcuts");
+const mouseHook = require("./mouse-hook");
 
 // ─── IPC ───
 
@@ -206,10 +207,20 @@ ipcMain.handle("save_settings", (_e, settings) => {
   // Apply launch at startup
   if (settings.launchAtStartup !== prevSettings.launchAtStartup) {
     try {
-      app.setLoginItemSettings({
-        openAtLogin: !!settings.launchAtStartup,
-        name: "RingDeck",
-      });
+      const isPortable = !!process.env.PORTABLE_EXECUTABLE_DIR || app.getPath("exe").includes("APP-Portable");
+      if (isPortable) {
+        const { execSync } = require("child_process");
+        const exeFile = process.env.PORTABLE_EXECUTABLE_DIR ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, path.basename(app.getPath("exe"))) : app.getPath("exe");
+        const ps = settings.launchAtStartup 
+          ? `$s=(New-Object -COM WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup') + '\\RingDeck.lnk'); $s.TargetPath='${exeFile.replace(/'/g, "''")}'; $s.Save()` 
+          : `Remove-Item ([Environment]::GetFolderPath('Startup') + '\\RingDeck.lnk') -ErrorAction SilentlyContinue`;
+        execSync(`powershell -NoProfile -WindowStyle Hidden -Command "${ps}"`);
+      } else {
+        app.setLoginItemSettings({
+          openAtLogin: !!settings.launchAtStartup,
+          name: "RingDeck",
+        });
+      }
     } catch (e) {
       captureException(e);
     }
@@ -221,6 +232,65 @@ ipcMain.handle("save_settings", (_e, settings) => {
     setSentryEnabled(enabled);
     saveTelemetryConsent(enabled);
   }
+});
+
+// ─── Mouse Bindings ───
+
+ipcMain.handle("get_mouse_bindings", () => {
+  const config = getConfig();
+  return config.mouseBindings || [];
+});
+
+ipcMain.handle("save_mouse_bindings", (_e, bindings) => {
+  const config = getConfig();
+  config.mouseBindings = bindings;
+  setConfig(config);
+  saveConfigToDisk(config);
+  // Restart mouse hook so new bindings take effect immediately
+  mouseHook.stop();
+  mouseHook.start();
+});
+
+/**
+ * Start capture mode: the next physical mouse button press will be
+ * sent back to the renderer via "mouse_button_captured" on the main window.
+ * Used by the "Capture button" UI feature: user clicks "Capture", presses
+ * the physical button, and the UI auto-fills the button ID.
+ */
+ipcMain.handle("start_mouse_capture", () => {
+  mouseHook.startCapture((buttonId) => {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("mouse_button_captured", buttonId);
+    }
+  });
+});
+
+ipcMain.handle("stop_mouse_capture", () => {
+  mouseHook.stopCapture();
+});
+
+// ─── Window controls (frameless title bar) ───
+
+ipcMain.handle("window_minimize", () => {
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+});
+
+ipcMain.handle("window_maximize", () => {
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.handle("window_close", () => {
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
 });
 
 module.exports = {};

@@ -5,7 +5,11 @@ const { captureException } = require("./telemetry");
 
 // ─── Config ───
 
-const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
+// Detect portable mode via electron-builder env var
+const isPortable = !!process.env.PORTABLE_EXECUTABLE_DIR;
+const CONFIG_PATH = isPortable
+  ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, "config.json")
+  : path.join(app.getPath("userData"), "config.json");
 
 let config = null;
 let activeProfileIndex = 0;
@@ -17,13 +21,19 @@ function getDefaultConfig() {
   if (platform === "win32") {
     slices = [
       {
+        label: "Play / Pause",
+        icon: "play-pause",
+        action: { type: "MediaKey", key: "play-pause" }
+      },
+      {
         label: "Terminal",
         icon: "terminal",
-        action: {
-          type: "Program",
-          path: "wt.exe",
-          args: [],
-        },
+        action: { type: "Program", path: "wt.exe", args: [], terminal: true }
+      },
+      {
+        label: "Next Track",
+        icon: "forward",
+        action: { type: "MediaKey", key: "next" }
       },
       {
         label: "Browser",
@@ -34,51 +44,31 @@ function getDefaultConfig() {
           args: [],
         },
       },
+      {
+        label: "Previous Track",
+        icon: "backward",
+        action: { type: "MediaKey", key: "prev" }
+      },
+      {
+        label: "Volume Mute",
+        icon: "microphone",
+        action: { type: "MediaKey", key: "mute" }
+      }
     ];
   } else if (platform === "linux") {
     slices = [
-      {
-        label: "Terminal",
-        icon: "terminal",
-        action: {
-          type: "Script",
-          command: "x-terminal-emulator",
-        },
-      },
-      {
-        label: "Browser",
-        icon: "globe",
-        action: {
-          type: "Script",
-          command: "xdg-open https://google.com",
-        },
-      },
+      { label: "Terminal", icon: "terminal", action: { type: "Script", command: "x-terminal-emulator" } },
+      { label: "Browser", icon: "globe", action: { type: "Script", command: "xdg-open https://google.com" } }
     ];
   } else {
-    // macOS
     slices = [
-      {
-        label: "Terminal",
-        icon: "terminal",
-        action: {
-          type: "Program",
-          path: "/System/Applications/Utilities/Terminal.app",
-          args: [],
-        },
-      },
-      {
-        label: "Browser",
-        icon: "globe",
-        action: {
-          type: "Program",
-          path: "/Applications/Safari.app",
-          args: [],
-        },
-      },
+      { label: "Terminal", icon: "terminal", action: { type: "Program", path: "/System/Applications/Utilities/Terminal.app", args: [] } },
+      { label: "Browser", icon: "globe", action: { type: "Program", path: "/Applications/Safari.app", args: [] } }
     ];
   }
 
   return {
+    mouseBindings: [],
     profiles: [
       {
         id: "default",
@@ -119,6 +109,11 @@ function migrateConfig(cfg) {
       customPresets: [],
     };
     saveConfigToDisk(cfg);
+  }
+
+  // Migrate configs that lack a mouseBindings field
+  if (cfg.profiles && !cfg.mouseBindings) {
+    cfg.mouseBindings = [];
   }
 
   return cfg;

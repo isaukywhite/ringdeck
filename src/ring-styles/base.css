@@ -11,7 +11,7 @@
   --purple-mid-rgb: 61, 42, 124;
   --purple-dark-rgb: 26, 14, 62;
   --ring-node-bg: linear-gradient(145deg, #0862C0 0%, #2D1B69 100%);
-  --ring-node-bg-hover: linear-gradient(145deg, #4FD1FF 0%, #0A84FF 100%);
+  --ring-node-bg-hover: linear-gradient(145deg, #3AB8FF 0%, #0A84FF 100%);
   --ring-center-gradient: radial-gradient(circle, #fff 0%, #3D2A7C 100%);
   --ring-center-active: radial-gradient(circle, #fff 10%, #0A84FF 70%, #2D1B69 100%);
 }

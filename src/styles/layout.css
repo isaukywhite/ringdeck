@@ -1,8 +1,60 @@
+/* ═══ Custom Titlebar (frameless window) ═══ */
+
+.custom-titlebar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  background: rgba(14, 10, 26, 0.95);
+  border-bottom: 1px solid var(--separator);
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 100;
+}
+
+.titlebar-drag-area {
+  flex: 1;
+  height: 100%;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  -webkit-app-region: no-drag;
+  height: 100%;
+}
+
+.titlebar-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.titlebar-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
 /* ═══ Two-pane layout ═══ */
 
 .config-layout {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 32px);
   overflow: hidden;
 }
 
@@ -596,10 +648,47 @@
   letter-spacing: 0.02em;
 }
 
+/* Trigger section (wrapper for label + tabs) */
+
+.trigger-section {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+/* Input tabs (Keyboard / Mouse) */
+
+.input-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--separator);
+}
+
+.input-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 10px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.input-tab:hover {
+  color: var(--text-secondary);
+}
+
+.input-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* Shortcut area */
 
 .shortcut-area {
-  margin-top: auto;
+  margin-top: 8px;
   width: 100%;
 }
 

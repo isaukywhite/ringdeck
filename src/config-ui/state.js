@@ -9,9 +9,12 @@ let dragSrcIndex = -1;
 let activeProfileIndex = 0;
 let activeView = 'actions'; // 'actions' | 'settings'
 let appVersion = 'v0.0.0';
+let activeInputTab = 'keyboard'; // 'keyboard' | 'mouse'
 
 export function getConfig() { return config; }
 export function setConfig(c) { config = c; }
+export function getActiveInputTab() { return activeInputTab; }
+export function setActiveInputTab(v) { activeInputTab = v; }
 
 export function getActiveProfileIndex() { return activeProfileIndex; }
 export function setActiveProfileIndex(i) { activeProfileIndex = i; }
