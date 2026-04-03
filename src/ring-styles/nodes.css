@@ -19,10 +19,9 @@
 }
 
 .ring-node.hovered .ring-node-inner {
-  transform: scale(1.45);
-  filter: drop-shadow(0 0 18px rgba(var(--glow-rgb), 0.5))
-          drop-shadow(0 0 6px rgba(var(--purple-rgb), 0.4))
-          drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
+  transform: scale(1.25);
+  filter: drop-shadow(0 0 12px rgba(var(--glow-rgb), 0.45))
+          drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
 }
 
 .ring-node-circle {
@@ -46,8 +45,8 @@
 
 .ring-node.hovered .ring-node-circle {
   background: var(--ring-node-bg-hover);
-  box-shadow: 0 0 16px rgba(var(--glow-rgb), 0.4),
-              0 0 0 1px rgba(var(--glow-secondary-rgb), 0.2);
+  box-shadow: 0 0 12px rgba(var(--glow-rgb), 0.3),
+              0 0 0 1px rgba(var(--glow-secondary-rgb), 0.15);
 }
 
 .ring-node-circle svg {

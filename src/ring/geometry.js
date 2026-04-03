@@ -2,7 +2,7 @@ export const RING_SIZE = 400;
 export const CENTER = RING_SIZE / 2;
 export const NODE_ORBIT = 95;
 export const ARC_RADIUS = 135;
-export const SUB_ORBIT = 90;
+export const SUB_ORBIT = 135;
 export const SUB_NODE_SIZE = 46;
 
 export function arcSpread(n) {
@@ -24,7 +24,8 @@ export function subNodePosition(childIndex, childCount, parentIndex, parentCount
   const parentX = CENTER + NODE_ORBIT * Math.cos(parentAngle);
   const parentY = CENTER + NODE_ORBIT * Math.sin(parentAngle);
 
-  const fanSpread = Math.min(Math.PI / 2, 0.5 * Math.PI * childCount / 5);
+  // Aumentar o spread para icones grandes não colidirem
+  const fanSpread = Math.min(Math.PI * 0.85, 0.6 * Math.PI * childCount / 3);
   const startAngle = parentAngle - fanSpread / 2;
   const step = childCount > 1 ? fanSpread / (childCount - 1) : 0;
   const angle = startAngle + step * childIndex;
@@ -96,13 +97,3 @@ export function closestSubNode(mx, my, activeSubmenu, slices) {
   return best;
 }
 
-export function isNearBackButton(mx, my, activeSubmenu, slices) {
-  if (activeSubmenu < 0) return false;
-  const parentN = slices.length;
-  const parentAngle = (2 * Math.PI * activeSubmenu) / parentN - Math.PI / 2;
-  const backX = NODE_ORBIT * Math.cos(parentAngle);
-  const backY = NODE_ORBIT * Math.sin(parentAngle);
-  const dx = mx - backX;
-  const dy = my - backY;
-  return Math.hypot(dx, dy) < 18;
-}
